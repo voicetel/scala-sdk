@@ -170,7 +170,7 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(NumberCnamRequest(true), "NumberCnamRequest")
     roundTrip(NumberLidbRequest("ACME", Some("ref")), "NumberLidbRequest")
     roundTrip(NumberFaxRequest("f@x.com"), "NumberFaxRequest")
-    roundTrip(NumberForwardRequest(2125550123L), "NumberForwardRequest")
+    roundTrip(NumberForwardRequest("2125550123"), "NumberForwardRequest")
     roundTrip(NumberTranslationRequest("2015551235"), "NumberTranslationRequest")
     roundTrip(NumberSmsRequest("email", "f@x.com"), "NumberSmsRequest")
     roundTrip(NumberMessagingPatchRequest(Some(1), Some(2)), "NumberMessagingPatchRequest")
