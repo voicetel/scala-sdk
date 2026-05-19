@@ -796,7 +796,7 @@ object Models:
   object NumberFaxRequest:
     given Codec[NumberFaxRequest] = deriveCodec
 
-  final case class NumberForwardRequest(destination: Long)
+  final case class NumberForwardRequest(destination: String)
   object NumberForwardRequest:
     given Codec[NumberForwardRequest] = deriveCodec
 

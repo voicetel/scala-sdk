@@ -432,7 +432,7 @@ class ResourcesSuite extends munit.FunSuite:
   test("Numbers.setForward decodes") {
     val resp = NumberForwardData("2015551234", Some("2125551234"))
     val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.numbers.setForward("2015551234", NumberForwardRequest(2125551234L)))
+    val r    = await(c.numbers.setForward("2015551234", NumberForwardRequest("2125551234")))
     assertEquals(r.forwardTo, Some("2125551234"))
   }
 
@@ -607,7 +607,7 @@ class ResourcesSuite extends munit.FunSuite:
     shouldFail(c.numbers.getFax("2015551234"), "numbers.getFax")
     shouldFail(c.numbers.setFax("2015551234", NumberFaxRequest("f@x.com")), "numbers.setFax")
     shouldFail(c.numbers.removeFax("2015551234"), "numbers.removeFax")
-    shouldFail(c.numbers.setForward("2015551234", NumberForwardRequest(2125551234L)), "numbers.setForward")
+    shouldFail(c.numbers.setForward("2015551234", NumberForwardRequest("2125551234")), "numbers.setForward")
     shouldFail(c.numbers.removeForward("2015551234"), "numbers.removeForward")
     shouldFail(c.numbers.getSms("2015551234"), "numbers.getSms")
     shouldFail(c.numbers.setSms("2015551234", NumberSmsRequest("email", "f@x.com")), "numbers.setSms")
