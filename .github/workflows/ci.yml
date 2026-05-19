@@ -33,9 +33,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-sbt-
       - name: Compile
-        run: sbt "++ ${{ matrix.scala }} compile"
+        run: sbt "++${{ matrix.scala }}" compile
       - name: Test with coverage
-        run: sbt "++ ${{ matrix.scala }} clean coverage test coverageReport"
+        run: sbt "++${{ matrix.scala }}" clean coverage test coverageReport
       - name: Coverage summary
         run: |
           if [ -f target/scala-${{ matrix.scala }}/scoverage-report/scoverage.xml ]; then
