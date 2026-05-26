@@ -5,7 +5,10 @@ import io.circe.parser.parse
 import sttp.client3.*
 import sttp.model.{Method, Uri}
 
+import java.io.ByteArrayInputStream
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicReference
+import java.util.zip.GZIPInputStream
 import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
@@ -76,11 +79,17 @@ final class Transport(
       requireAuth: Boolean,
       attempt: Int
   )(using ec: ExecutionContext): Future[Option[Json]] =
+    val idempotencyKey =
+      if method == Method.POST || method == Method.PUT || method == Method.PATCH then
+        Some(java.util.UUID.randomUUID().toString)
+      else None
+
     var req = basicRequest
       .method(method, uri)
       .header("User-Agent", userAgent)
       .header("Accept", "application/json")
-      .response(asStringAlways)
+      .header("Accept-Encoding", "gzip")
+      .response(asByteArrayAlways)
 
     body.foreach { j =>
       req = req
@@ -89,17 +98,19 @@ final class Transport(
     }
     if requireAuth then
       req = req.header("Authorization", s"Bearer $apiKey")
+    idempotencyKey.foreach(k => req = req.header("Idempotency-Key", k))
 
     req.send(backend).flatMap { resp =>
+      val raw = decompressBody(resp.body, resp.header("Content-Encoding"))
       val status = resp.code.code
       if status >= 200 && status < 300 then
-        Future.fromTry(decodeSuccess(status, resp.body))
+        Future.fromTry(decodeSuccess(status, raw))
       else if retryableStatuses.contains(status) && attempt < maxRetries then
         val delay = backoffDelay(attempt, resp.header("Retry-After"))
         afterDelay(delay) {
           doAttempt(method, uri, body, requireAuth, attempt + 1)
         }
-      else Future.failed(decodeError(status, resp.body))
+      else Future.failed(decodeError(status, raw))
     }.recoverWith {
       case e: ApiError => Future.failed(e)
       case t: Throwable if attempt < maxRetries =>
@@ -119,6 +130,13 @@ final class Transport(
           )
         )
     }
+
+  private def decompressBody(bytes: Array[Byte], encoding: Option[String]): String =
+    if encoding.exists(_.equalsIgnoreCase("gzip")) then
+      val gis = new GZIPInputStream(new ByteArrayInputStream(bytes))
+      try new String(gis.readAllBytes(), StandardCharsets.UTF_8) finally gis.close()
+    else
+      new String(bytes, StandardCharsets.UTF_8)
 
   private def decodeSuccess(@annotation.unused status: Int, raw: String): scala.util.Try[Option[Json]] =
     if raw == null || raw.isEmpty then scala.util.Success(None)
