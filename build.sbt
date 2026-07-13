@@ -24,7 +24,7 @@ ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.1
 
 val sttpVersion  = "3.10.1"
 val circeVersion = "0.14.10"
-val munitVersion = "1.3.3"
+val munitVersion = "1.3.4"
 
 lazy val root = (project in file("."))
   .settings(
