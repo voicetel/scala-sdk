@@ -33,17 +33,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-sbt-
       - name: Compile
-        run: sbt "++${{ matrix.scala }}" compile
+        run: sbt "++${{ matrix.scala }}; compile"
       - name: Test with coverage
-        run: sbt "++${{ matrix.scala }}" clean coverage test coverageReport
+        run: sbt "++${{ matrix.scala }}; clean; coverage; test; coverageReport"
       - name: Coverage summary
         run: |
-          if [ -f target/scala-${{ matrix.scala }}/scoverage-report/scoverage.xml ]; then
-            python3 -c "
+          report=target/out/jvm/scala-${{ matrix.scala }}/voicetel-sdk/scoverage-report/scoverage.xml
+          if [ ! -f "$report" ]; then
+            echo "::error::coverage report not found at $report"
+            exit 1
+          fi
+          python3 -c "
           import xml.etree.ElementTree as ET, sys
-          t = ET.parse('target/scala-${{ matrix.scala }}/scoverage-report/scoverage.xml')
+          t = ET.parse('$report')
           root = t.getroot()
           print('statement-rate:', root.get('statement-rate'))
           print('branch-rate:   ', root.get('branch-rate'))
           "
-          fi
