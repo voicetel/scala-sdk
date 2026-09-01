@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: ["3.8.4"]
+        scala: ["3.9.0"]
     steps:
       - uses: actions/checkout@v7
       - name: Set up JDK 17
