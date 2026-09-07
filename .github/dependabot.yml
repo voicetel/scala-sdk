@@ -12,6 +12,18 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+    ignore:
+      # sbt 2.0.8 and munit 1.3.6 both regress munit test discovery under
+      # this toolchain (sbt 2.x + sbt-scoverage 2.4.4 + Scala 3.9.0): the
+      # munit.Framework registers zero suites, so `coverage; test` runs 0
+      # tests and the scoverage report is never produced. Re-enable once
+      # upstream validates these versions against the build.
+      - dependency-name: "sbt"
+        update-types:
+          - "version-update:semver-patch"
+      - dependency-name: "munit_3"
+        update-types:
+          - "version-update:semver-patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
