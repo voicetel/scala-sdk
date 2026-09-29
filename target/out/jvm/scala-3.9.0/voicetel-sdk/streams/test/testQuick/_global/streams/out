@@ -1,2 +1,11 @@
-[info] Passed: Total 0, Failed 0, Errors 0, Passed 0
-[info] No tests to run for Test / testQuick
+[debug] Running TaskDef(com.voicetel.sdk.IntegrationSuite, CustomFingerprint{suite='munit.Suite'}, false, [SuiteSelector])
+[debug] Running TaskDef(com.voicetel.sdk.ResourcesSuite, CustomFingerprint{suite='munit.Suite'}, false, [SuiteSelector])
+[debug] Running TaskDef(com.voicetel.sdk.TransportSuite, CustomFingerprint{suite='munit.Suite'}, false, [SuiteSelector])
+[debug] Running TaskDef(com.voicetel.sdk.CodecRoundTripSuite, CustomFingerprint{suite='munit.Suite'}, false, [SuiteSelector])
+[debug] Summary for munit not available.
+[info] Passed: Total 101, Failed 0, Errors 0, Passed 99, Skipped 2
+[debug] Passed tests:
+[debug] 	com.voicetel.sdk.CodecRoundTripSuite
+[debug] 	com.voicetel.sdk.TransportSuite
+[debug] 	com.voicetel.sdk.ResourcesSuite
+[debug] 	com.voicetel.sdk.IntegrationSuite

@@ -1,0 +1,5 @@
+[warn] -- [E198] Unused Symbol Warning: /tmp/opencode/work/scala-sdk/src/test/scala/com/voicetel/sdk/TestSupport.scala:6:21 
+[warn] 6 |import sttp.client3.{Identity, Request, Response}
+[warn]   |                     ^^^^^^^^
+[warn]   |                     unused import
+[warn] one warning found

@@ -23,11 +23,15 @@ jobs:
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
         with:
-          # Pin the runner to match project/build.properties. The latest
-          # runner's thin client regresses munit discovery — `test` runs as
-          # `testQuick`, reports "Total 0", and produces no scoverage data.
-          # Bump together with build.properties (see .github/dependabot.yml).
+          # Pin the runner to match project/build.properties (see the
+          # dependabot ignore in .github/dependabot.yml).
           sbt-runner-version: 2.0.7
+          # Never restore the shared ~/.cache/sbt disk cache. Its key is
+          # OS+JDK only — not the sbt version — so a cache written by a newer
+          # sbt makes `test` silently run as `testQuick`, discover zero suites
+          # ("Total 0"), and emit no scoverage data. A clean boot cache fixes
+          # it; the runner distribution above is still cached separately.
+          disk-cache: false
       - name: Cache coursier and ivy
         uses: actions/cache@v6
         with:

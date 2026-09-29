@@ -1,0 +1,9 @@
+[warn] -- [E198] Unused Symbol Warning: /tmp/opencode/work/scala-sdk/src/main/scala/com/voicetel/sdk/Transport.scala:116:11 
+[warn] 116 |      case t: Throwable if attempt < maxRetries =>
+[warn]     |           ^
+[warn]     |           unused pattern variable
+[warn] -- [E198] Unused Symbol Warning: /tmp/opencode/work/scala-sdk/src/main/scala/com/voicetel/sdk/Transport.scala:145:18 
+[warn] 145 |        case Left(err) =>
+[warn]     |                  ^^^
+[warn]     |                  unused pattern variable
+[warn] two warnings found
