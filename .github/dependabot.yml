@@ -18,10 +18,10 @@ updates:
       # munit.Framework registers zero suites, so `coverage; test` runs 0
       # tests and the scoverage report is never produced. Re-enable once
       # upstream validates these versions against the build.
-      - dependency-name: "sbt"
+      - dependency-name: "org.scala-sbt:sbt"
         update-types:
           - "version-update:semver-patch"
-      - dependency-name: "munit_3"
+      - dependency-name: "org.scalameta:munit_3"
         update-types:
           - "version-update:semver-patch"
 
