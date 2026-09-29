@@ -1,0 +1,34 @@
+[debug] Packaging /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/voicetel-sdk_3-2.2.10-tests.jar ...
+[debug] Input file mappings:
+[debug] 	com/voicetel/sdk/CodecRoundTripSuite.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/CodecRoundTripSuite.class
+[debug] 	com/voicetel/sdk/CodecRoundTripSuite.tasty
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/CodecRoundTripSuite.tasty
+[debug] 	com/voicetel/sdk/IntegrationSuite.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/IntegrationSuite.class
+[debug] 	com/voicetel/sdk/IntegrationSuite.tasty
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/IntegrationSuite.tasty
+[debug] 	com/voicetel/sdk/IntegrationTag$.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/IntegrationTag$.class
+[debug] 	com/voicetel/sdk/IntegrationTag.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/IntegrationTag.class
+[debug] 	com/voicetel/sdk/IntegrationTag.tasty
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/IntegrationTag.tasty
+[debug] 	com/voicetel/sdk/ResourcesSuite.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/ResourcesSuite.class
+[debug] 	com/voicetel/sdk/ResourcesSuite.tasty
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/ResourcesSuite.tasty
+[debug] 	com/voicetel/sdk/TestSupport$$anon$1.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/TestSupport$$anon$1.class
+[debug] 	com/voicetel/sdk/TestSupport$.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/TestSupport$.class
+[debug] 	com/voicetel/sdk/TestSupport.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/TestSupport.class
+[debug] 	com/voicetel/sdk/TestSupport.tasty
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/TestSupport.tasty
+[debug] 	com/voicetel/sdk/TransportSuite.class
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/TransportSuite.class
+[debug] 	com/voicetel/sdk/TransportSuite.tasty
+[debug] 	  /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes/com/voicetel/sdk/TransportSuite.tasty
+[debug] Done packaging.
+[debug] wrote ${OUT}/jvm/scala-3.9.0/voicetel-sdk/voicetel-sdk_3-2.2.10-tests.jar

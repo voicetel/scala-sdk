@@ -1,0 +1,26 @@
+[debug] Created transactional ClassFileManager with tempDir = /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes.bak
+[debug] About to delete class files:
+[debug] We backup class files:
+[debug] Created transactional ClassFileManager with tempDir = /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes.bak
+[debug] About to delete class files:
+[debug] We backup class files:
+[debug] Registering generated classes:
+[debug] 	ResourcesSuite.class
+[debug] 	TransportSuite.class
+[debug] 	TestSupport.class
+[debug] 	IntegrationTag.class
+[debug] 	IntegrationTag$.class
+[debug] 	IntegrationSuite.class
+[debug] 	TestSupport$$anon$1.class
+[debug] 	CodecRoundTripSuite.class
+[debug] 	TestSupport$.class
+[debug] 	ResourcesSuite.tasty
+[debug] 	TransportSuite.tasty
+[debug] 	TestSupport.tasty
+[debug] 	IntegrationTag.tasty
+[debug] 	IntegrationTag$.tasty
+[debug] 	IntegrationSuite.tasty
+[debug] 	TestSupport$$anon$1.tasty
+[debug] 	CodecRoundTripSuite.tasty
+[debug] 	TestSupport$.tasty
+[debug] Removing the temporary directory used for backing up class files: /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.9.0/voicetel-sdk/test-classes.bak

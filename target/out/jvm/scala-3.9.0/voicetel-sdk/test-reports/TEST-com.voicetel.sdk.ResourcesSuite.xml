@@ -1,0 +1,140 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuite hostname="ai" name="com.voicetel.sdk.ResourcesSuite" tests="65" errors="0" failures="0" skipped="0" time="0.343" timestamp="2026-09-29T11:49:02">
+          <properties>
+      <property name="java.specification.version" value="21"/><property name="sun.jnu.encoding" value="UTF-8"/><property name="sun.arch.data.model" value="64"/><property name="java.vendor.url" value="https://tracker.debian.org/openjdk-21"/><property name="sun.boot.library.path" value="/usr/lib/jvm/java-21-openjdk-amd64/lib"/><property name="sun.java.command" value="/tmp/opencode/sbt209/bin/sbt-launch.jar --detach-stdio"/><property name="jdk.debug" value="release"/><property name="java.specification.vendor" value="Oracle Corporation"/><property name="java.version.date" value="2026-08-18"/><property name="java.home" value="/usr/lib/jvm/java-21-openjdk-amd64"/><property name="file.separator" value="/"/><property name="java.vm.compressedOopsMode" value="32-bit"/><property name="line.separator" value="
+"/><property name="java.vm.specification.vendor" value="Oracle Corporation"/><property name="java.specification.name" value="Java Platform API Specification"/><property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/><property name="java.runtime.version" value="21.0.12.1+1-1-deb13u1-Debian"/><property name="user.name" value="michael"/><property name="file.encoding" value="UTF-8"/><property name="jnidispatch.path" value="/home/michael/.cache/JNA/temp/jna9839136642989639503.tmp"/><property name="jna.loaded" value="true"/><property name="java.io.tmpdir" value="/tmp"/><property name="java.version" value="21.0.12.1"/><property name="java.vm.specification.name" value="Java Virtual Machine Specification"/><property name="native.encoding" value="UTF-8"/><property name="java.library.path" value="/usr/java/packages/lib:/usr/lib/x86_64-linux-gnu/jni:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib/jni:/lib:/usr/lib"/><property name="stderr.encoding" value="UTF-8"/><property name="java.vendor" value="Debian"/><property name="scala.ext.dirs" value="/home/michael/.sbt/1.0/java9-rt-ext-debian_21_0_12_1"/><property name="sun.io.unicode.encoding" value="UnicodeLittle"/><property name="java.class.path" value="/tmp/opencode/sbt209/bin/sbt-launch.jar"/><property name="java.vm.vendor" value="Debian"/><property name="jline.shutdownhook" value="false"/><property name="user.timezone" value="America/New_York"/><property name="java.vm.specification.version" value="21"/><property name="os.name" value="Linux"/><property name="sun.java.launcher" value="SUN_STANDARD"/><property name="user.country" value="US"/><property name="sun.cpu.endian" value="little"/><property name="user.home" value="/home/michael"/><property name="sbt.io.virtual" value="true"/><property name="user.language" value="en"/><property name="sbt.script" value="/tmp/opencode/sbt209/bin/sbt"/><property name="sbt.ipcsocket.tmpdir" value="/tmp/.sbtc634dfa3/ipcsocket"/><property name="swoval.tmpdir" value="/tmp/.sbtc634dfa3/swoval"/><property name="jline.esc.timeout" value="0"/><property name="stdout.encoding" value="UTF-8"/><property name="path.separator" value=":"/><property name="os.version" value="7.1.8+deb13-amd64"/><property name="jna.nosys" value="true"/><property name="java.runtime.name" value="OpenJDK Runtime Environment"/><property name="java.vm.name" value="OpenJDK 64-Bit Server VM"/><property name="jna.platform.library.path" value="/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib64:/lib64:/usr/lib:/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu/libfakeroot"/><property name="java.vendor.url.bug" value="https://bugs.debian.org/openjdk-21"/><property name="user.dir" value="/tmp/opencode/work/scala-sdk"/><property name="os.arch" value="amd64"/><property name="java.vm.info" value="mixed mode, sharing"/><property name="java.vm.version" value="21.0.12.1+1-1-deb13u1-Debian"/><property name="java.class.version" value="65.0"/>
+    </properties>
+          <testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.get decodes profile" time="0.172">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.update sends notify and decodes Updated list" time="0.013">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.add returns AccountAddData" time="0.004">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.signup returns AccountSignupData" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.cdr accepts start/end and decodes" time="0.004">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.credits decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.recurringCharges decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.payments decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.registration decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Account.recover decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="ACL.list decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="ACL.add decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="ACL.remove decodes (200 with body)" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Authentication.get decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Authentication.update decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="E911.list decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="E911.create decodes" time="0.004">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="E911.validate decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="E911.get decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="E911.provision decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="E911.remove returns Unit on 204" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Gateways.list decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Gateways.add decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Gateways.get decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Gateways.update decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Gateways.remove returns Unit on 204" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Gateways.numbers decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="INumbering.searchInventory decodes and serializes query" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="INumbering.coverage decodes (default query)" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="INumbering.order decodes with mixed Value/Spec entries" time="0.004">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="INumbering.ports decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="INumbering.port decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="INumbering.submitPort decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="INumbering.portAvailability decodes v2.2.10 fields" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Lookups.cnam decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Lookups.lrn decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Messaging.history decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Messaging.send uses wire fields fromNumber/toNumber" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Messaging.createBrand decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Messaging.campaignStatus decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Messaging.createCampaign decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Messaging.numbersState decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers.list decodes" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers.add decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers.get decodes" time="0.0">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers.remove and .release return Unit on 204" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers.move decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers route/translation/cnam/lidb setters" time="0.007">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers fax getter and setter" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers fax/forward/sms DELETE return Unit on 204" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers.setForward decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers SMS get/set" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers.getMessaging and patchMessaging" time="0.003">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers campaign assign" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers campaign unassign (single)" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers campaign bulk unassign" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Numbers.setPortOutPin decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Support.list decodes ticketNumber from wire 'number' field" time="0.008">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Support.create decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Support.get decodes" time="0.001">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Support.update decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Support.delete returns Unit on 204" time="0.0">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Support.messages decodes" time="0.004">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="Support.reply decodes" time="0.002">
+                      
+                    </testcase><testcase classname="com.voicetel.sdk.ResourcesSuite" name="every method propagates server errors" time="0.016">
+                      
+                    </testcase>
+          <system-out></system-out>
+          <system-err></system-err>
+        </testsuite>
