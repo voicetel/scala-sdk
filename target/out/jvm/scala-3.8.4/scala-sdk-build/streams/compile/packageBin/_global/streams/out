@@ -1,0 +1,5 @@
+[debug] Packaging /tmp/opencode/work/scala-sdk/target/out/jvm/scala-3.8.4/scala-sdk-build/scala-sdk-build_sbt2_3-0.1.0-SNAPSHOT.jar ...
+[debug] Input file mappings:
+[debug] 	
+[debug] Done packaging.
+[debug] wrote ${OUT}/jvm/scala-3.8.4/scala-sdk-build/scala-sdk-build_sbt2_3-0.1.0-SNAPSHOT.jar
