@@ -38,7 +38,7 @@ jobs:
         run: sbt "++${{ matrix.scala }}; clean; coverage; test; coverageReport"
       - name: Coverage summary
         run: |
-          report=$(find target -path "*scoverage-report/scoverage.xml" | head -1)
+          report=$(find . -name "scoverage.xml" | head -1)
           if [ -z "$report" ]; then
             echo "::error::coverage report not found at $report"
             exit 1
