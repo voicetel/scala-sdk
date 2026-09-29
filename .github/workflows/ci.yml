@@ -45,7 +45,7 @@ jobs:
       - name: Compile
         run: sbt "++${{ matrix.scala }}; compile"
       - name: Test with coverage
-        run: sbt "++${{ matrix.scala }}; clean; coverage; test; coverageReport"
+        run: sbt "++${{ matrix.scala }}; clean; coverage; Test/test; coverageReport"
       - name: Coverage summary
         run: |
           report=$(find . -name "scoverage.xml" | head -1)
