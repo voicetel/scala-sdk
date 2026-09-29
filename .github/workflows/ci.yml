@@ -22,6 +22,12 @@ jobs:
           java-version: "17"
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
+        with:
+          # Pin the runner to match project/build.properties. The latest
+          # runner's thin client regresses munit discovery — `test` runs as
+          # `testQuick`, reports "Total 0", and produces no scoverage data.
+          # Bump together with build.properties (see .github/dependabot.yml).
+          sbt-runner-version: 2.0.7
       - name: Cache coursier and ivy
         uses: actions/cache@v6
         with:

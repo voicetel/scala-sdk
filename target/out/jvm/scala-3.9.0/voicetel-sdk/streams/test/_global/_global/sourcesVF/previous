@@ -1,0 +1,1 @@
+["Task[Seq[interface xsbti.HashedVirtualFileRef]]",["${BASE}/src/test/scala/com/voicetel/sdk/CodecRoundTripSuite.scala","${BASE}/src/test/scala/com/voicetel/sdk/IntegrationSuite.scala","${BASE}/src/test/scala/com/voicetel/sdk/ResourcesSuite.scala","${BASE}/src/test/scala/com/voicetel/sdk/TestSupport.scala","${BASE}/src/test/scala/com/voicetel/sdk/TransportSuite.scala"]]
