@@ -113,7 +113,7 @@ final class Transport(
       else Future.failed(decodeError(status, raw))
     }.recoverWith {
       case e: ApiError => Future.failed(e)
-      case t: Throwable if attempt < maxRetries =>
+      case _: Throwable if attempt < maxRetries =>
         val delay = backoffDelay(attempt, None)
         afterDelay(delay) {
           doAttempt(method, uri, body, requireAuth, attempt + 1)
@@ -142,7 +142,7 @@ final class Transport(
     if raw == null || raw.isEmpty then scala.util.Success(None)
     else
       parse(raw) match
-        case Left(err) =>
+        case Left(_) =>
           // Non-JSON 2xx body — treat as no payload.
           scala.util.Success(None)
         case Right(json) =>

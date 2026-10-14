@@ -75,9 +75,9 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(AuthPutData(List(AuthUpdatedEntry("password"))), "AuthPutData")
     roundTrip(AuthPutConflictData(List(AuthUpdatedEntry("authType", Some(1)))), "AuthPutConflictData")
     assertEquals(AuthType.Digest, 0)
-    assertEquals(AuthType.IPAuth, 1)
-    assertEquals(AuthType.DigestOrIP, 2)
-    assertEquals(AuthType.DigestAndIP, 3)
+    assertEquals(AuthType.Lax, 1)
+    assertEquals(AuthType.IP, 2)
+    assertEquals(AuthType.Strict, 3)
   }
 
   test("E911 models round-trip") {
@@ -127,7 +127,7 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(port, "PortSubmitRequest")
     roundTrip(InventoryItem("2015550123", "RC", "C", "NJ", "224"), "InventoryItem")
     roundTrip(InventoryCoverageItem(5, Some("201"), Some("555"), Some("0"), Some("C"), Some("RC"), Some("224"), Some("NJ")), "InventoryCoverageItem")
-    roundTrip(PortSummary("submitted", Some("1"), Some("P"), Some("F"), Some("c"), Some("m"), Some("u")), "PortSummary")
+    roundTrip(PortSummary("submitted", Some("1"), Some("P"), Some("F"), Some("c"), Some("m")), "PortSummary")
     roundTrip(PortDetail("submitted", Some("1"), Some("P"), Some("N"), Some("E"), Some("F"), Some("c"), List("2015550123"), Some("m")), "PortDetail")
     roundTrip(InventorySearchData(Nil), "InventorySearchData")
     roundTrip(InventoryCoverageData(Nil), "InventoryCoverageData")
@@ -160,7 +160,21 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(MessagingBrandCreateData(BrandRegistrationResult("200", "S")), "MessagingBrandCreateData")
     roundTrip(CampaignRegistrationResult("200", "S"), "CampaignRegistrationResult")
     roundTrip(MessagingCampaignCreateData(CampaignRegistrationResult("200", "S")), "MessagingCampaignCreateData")
-    roundTrip(CampaignStatusItem("C", "ACTIVE", List("2015550123")), "CampaignStatusItem")
+    roundTrip(CampaignDcaCarrier("T-Mobile", "ACTIVE", "Campaign approved", "2026-01-02T03:04:05Z"), "CampaignDcaCarrier")
+    roundTrip(
+      CampaignDca(
+        electionComplete = false,
+        electedCarriers = Some(List("AT&T", "T-Mobile", "US Cellular")),
+        carriers = List(CampaignDcaCarrier("T-Mobile", "ACTIVE", "Campaign approved", "2026-01-02T03:04:05Z"))
+      ),
+      "CampaignDca"
+    )
+    roundTrip(CampaignDca(electionComplete = true, electedCarriers = None, carriers = Nil), "CampaignDca (empty)")
+    roundTrip(
+      CampaignStatusItem("CAMP002", "CAMPAIGN_PENDING_DCA", List("2015550123"), Some(CampaignDca(electionComplete = true))),
+      "CampaignStatusItem"
+    )
+    roundTrip(CampaignStatusItem("BADID", "CAMPAIGN_INVALID_ID", Nil, None), "CampaignStatusItem (no dca)")
     roundTrip(MessagingCampaignStatusData(Nil), "MessagingCampaignStatusData")
   }
 
@@ -181,7 +195,13 @@ class CodecRoundTripSuite extends munit.FunSuite:
     val d = NumberDetail("2015550123", "2015550123", 4, Some("gw"), true, true, Some("2125550123"), 17, true, true)
     roundTrip(d, "NumberDetail")
     roundTrip(CampaignBinding("C", "A", "ACTIVE", "X"), "CampaignBinding")
-    roundTrip(NumberMessagingState("2015550123", Some(true), true, 17, 1, "r", Some("A"), Some(CampaignBinding("C", "A", "ACTIVE", "X"))), "NumberMessagingState")
+    val job = MessagingEnablementJob("CAMP002", "assigning", "placing network order", "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+    roundTrip(job, "MessagingEnablementJob")
+    roundTrip(
+      NumberMessagingState("2015550123", Some(true), true, 1, 1, "r", Some("C"), Some(CampaignBinding("C", "B", "ACTIVE", "X")), Some(job)),
+      "NumberMessagingState"
+    )
+    roundTrip(NumberMessagingState("2015550123", None, true, 0, 0, ""), "NumberMessagingState (no network)")
     roundTrip(NumberAddData("2015550123", 4), "NumberAddData")
     roundTrip(NumberCnamData("2015550123", true), "NumberCnamData")
     roundTrip(NumberFaxData("2015550123", "f@x.com"), "NumberFaxData")
@@ -192,13 +212,31 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(NumberRouteData("2015550123", 4), "NumberRouteData")
     roundTrip(NumberSmsData("2015550123", "email", "f@x.com"), "NumberSmsData")
     roundTrip(NumberTranslationData("2015550123", "2015551235"), "NumberTranslationData")
-    roundTrip(NumberMessagingCampaignAssignData("2015550123", "C1", 17, Some("A"), Some("X"), Some("B"), true), "NumberMessagingCampaignAssignData")
+    roundTrip(
+      NumberMessagingCampaignAssignData(
+        "2015550123", "C1", "enabled", 19, Some("B"), Some("CAMP003"), Some("A"), true, false,
+        Some(Json.fromInt(4321)), None, None, None
+      ),
+      "NumberMessagingCampaignAssignData (enabled)"
+    )
+    roundTrip(
+      NumberMessagingCampaignAssignData(
+        "2015550123", "C1", "pending", 1, Some("C"), Some("BANDW"), None, false, false,
+        None, Some("stale registration on the other messaging path"), Some("provisioning started"), Some(job)
+      ),
+      "NumberMessagingCampaignAssignData (pending)"
+    )
+    roundTrip(
+      NumberMessagingCampaignAssignData("2015550123", "C1", "already", 19, Some("B"), Some("CAMP003"), None, false, true),
+      "NumberMessagingCampaignAssignData (already)"
+    )
     roundTrip(NumberMessagingCampaignUnassignData("2015550123", "C1", Some("A"), Some("X"), true), "NumberMessagingCampaignUnassignData")
     roundTrip(CampaignUnassignFailure("n", "r"), "CampaignUnassignFailure")
     roundTrip(NumbersMessagingCampaignUnassignData("C1", Some("A"), Some("X"), List("n"), List(CampaignUnassignFailure("x", "y"))), "NumbersMessagingCampaignUnassignData")
     roundTrip(NumbersListData(List(d)), "NumbersListData")
     roundTrip(NumbersMessagingListData(Nil), "NumbersMessagingListData")
-    roundTrip(PortOutPinUpdateData("2015550123", "1234"), "PortOutPinUpdateData")
+    roundTrip(PortOutPinUpdateData("2015550123", "1234", changed = true), "PortOutPinUpdateData (set)")
+    roundTrip(PortOutPinUpdateData("2015550123", "9999", changed = false), "PortOutPinUpdateData (locked)")
   }
 
   test("Support models round-trip") {
@@ -283,8 +321,8 @@ class CodecRoundTripSuite extends munit.FunSuite:
   }
 
   test("Version constants present") {
-    assertEquals(Version.APIVersion, "v2.2.10")
-    assertEquals(Version.SDKVersion, "2.2.10")
+    assertEquals(Version.APIVersion, "v2.2.14")
+    assertEquals(Version.SDKVersion, "2.2.14")
     assert(Version.DefaultBaseURL.startsWith("https://"))
     assert(Version.DefaultUserAgent.contains("voicetel-scala"))
   }

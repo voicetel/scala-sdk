@@ -3,7 +3,7 @@ package com.voicetel.sdk
 import io.circe.Json
 import io.circe.syntax.*
 import sttp.client3.testing.SttpBackendStub
-import sttp.client3.{Identity, Request, Response}
+import sttp.client3.{Request, Response}
 import sttp.model.{Header, StatusCode}
 
 import scala.concurrent.Future

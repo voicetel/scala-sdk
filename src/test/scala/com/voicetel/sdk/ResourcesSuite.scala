@@ -337,6 +337,51 @@ class ResourcesSuite extends munit.FunSuite:
     assertEquals(await(c.messaging.campaignStatus()).campaigns, Nil)
   }
 
+  test("Messaging.campaignStatus decodes carrier (DCA) review progress") {
+    val raw = envelope(Json.obj("campaigns" -> Json.arr(
+      Json.obj(
+        "id"      -> Json.fromString("CAMP002"),
+        "status"  -> Json.fromString("CAMPAIGN_PENDING_DCA"),
+        "numbers" -> Json.arr(Json.fromString("2015550123")),
+        "dca" -> Json.obj(
+          "electionComplete" -> Json.False,
+          "electedCarriers"  -> Json.arr(
+            Json.fromString("AT&T"), Json.fromString("T-Mobile"),
+            Json.fromString("US Cellular"), Json.fromString("Verizon Wireless"),
+            Json.fromString("ClearSky"), Json.fromString("Interop")
+          ),
+          "carriers" -> Json.arr(
+            Json.obj(
+              "carrier"   -> Json.fromString("T-Mobile"),
+              "status"    -> Json.fromString("ACTIVE"),
+              "detail"    -> Json.fromString("Campaign approved"),
+              "updatedAt" -> Json.fromString("2026-01-02T03:04:05Z")
+            ),
+            Json.obj(
+              "carrier"   -> Json.fromString("Verizon Wireless"),
+              "status"    -> Json.fromString("REJECTED"),
+              "detail"    -> Json.fromString("Missing sample opt-in"),
+              "updatedAt" -> Json.fromString("2026-01-03T03:04:05Z")
+            )
+          )
+        )
+      ),
+      Json.obj(
+        "id"      -> Json.fromString("NOPEID1"),
+        "status"  -> Json.fromString("CAMPAIGN_INVALID_ID"),
+        "numbers" -> Json.arr(),
+        "dca"     -> Json.Null
+      )
+    )))
+    val c     = clientFor(stubOk(raw))
+    val camps = await(c.messaging.campaignStatus()).campaigns
+    assertEquals(camps.head.dca.map(_.electionComplete), Some(false))
+    assertEquals(camps.head.dca.flatMap(_.electedCarriers).map(_.size), Some(6))
+    assertEquals(camps.head.dca.map(_.carriers.map(_.status)), Some(List("ACTIVE", "REJECTED")))
+    assertEquals(camps.head.dca.map(_.carriers.head.updatedAt), Some("2026-01-02T03:04:05Z"))
+    assertEquals(camps(1).dca, None)
+  }
+
   test("Messaging.createCampaign decodes") {
     val resp = MessagingCampaignCreateData(CampaignRegistrationResult("200", "Success"))
     val c    = clientFor(stubOk(envelopeOf(resp)))
@@ -455,13 +500,41 @@ class ResourcesSuite extends munit.FunSuite:
     assertEquals(await(c.numbers.patchMessaging("2015550123", NumberMessagingPatchRequest(routeIn = Some(1)))).updated, List("routeIn"))
   }
 
+  test("Numbers.getMessaging decodes pending path-C job") {
+    val raw = envelope(Json.obj(
+      "number"   -> Json.fromString("2015550123"),
+      "enabled"  -> Json.False,
+      "carrier"  -> Json.fromInt(1),
+      "routeIn"  -> Json.fromInt(0),
+      "resource" -> Json.fromString(""),
+      "network"  -> Json.fromString("C"),
+      "pending" -> Json.obj(
+        "campaignId" -> Json.fromString("CAMP002"),
+        "state"      -> Json.fromString("assigning"),
+        "message"    -> Json.fromString("placing network order"),
+        "createdAt"  -> Json.fromString("2026-01-01T00:00:00Z"),
+        "updatedAt"  -> Json.fromString("2026-01-01T00:01:00Z")
+      )
+    ))
+    val c = clientFor(stubOk(raw))
+    val r = await(c.numbers.getMessaging("2015550123"))
+    assertEquals(r.network, Some("C"))
+    assertEquals(r.pending.map(_.campaignId), Some("CAMP002"))
+    assertEquals(r.pending.map(_.state), Some("assigning"))
+  }
+
   test("Numbers campaign assign") {
-    val assign = NumberMessagingCampaignAssignData("2015550123", "C1", 17, Some("A"), Some("X"), None, false)
-    val c      = clientFor(stubOk(envelopeOf(assign)))
-    assertEquals(
-      await(c.numbers.assignCampaign("2015550123", NumberCampaignAssignRequest("C1"))).campaignId,
-      "C1"
+    val assign = NumberMessagingCampaignAssignData(
+      number = "2015550123", campaignId = "C1", status = "pending", carrier = 1,
+      network = Some("C"), upstreamCnpId = Some("BANDW"), previousNetwork = Some("A"),
+      previousNetworkCleared = false, message = Some("provisioning started"),
+      job = Some(MessagingEnablementJob("C1", "queued", "accepted", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z"))
     )
+    val c = clientFor(stubOk(envelopeOf(assign)))
+    val r = await(c.numbers.assignCampaign("2015550123", NumberCampaignAssignRequest("C1")))
+    assertEquals(r.campaignId, "C1")
+    assertEquals(r.status, "pending")
+    assertEquals(r.job.map(_.state), Some("queued"))
   }
 
   test("Numbers campaign unassign (single)") {
@@ -480,9 +553,11 @@ class ResourcesSuite extends munit.FunSuite:
   }
 
   test("Numbers.setPortOutPin decodes") {
-    val resp = PortOutPinUpdateData("2015550123", "1234")
+    val resp = PortOutPinUpdateData("2015550123", "1234", changed = true)
     val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.numbers.setPortOutPin("2015550123", PortOutPinUpdateRequest("1234"))).portOutPin, "1234")
+    val r    = await(c.numbers.setPortOutPin("2015550123", PortOutPinUpdateRequest("1234")))
+    assertEquals(r.portOutPin, "1234")
+    assertEquals(r.changed, true)
   }
 
   // ---------------------------------------------------------------- support ---

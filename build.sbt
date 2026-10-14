@@ -1,7 +1,7 @@
 ThisBuild / organization := "com.voicetel"
 ThisBuild / organizationName := "VoiceTel Communications"
 ThisBuild / organizationHomepage := Some(url("https://voicetel.com"))
-ThisBuild / version := "2.2.10"
+ThisBuild / version := "2.2.14"
 ThisBuild / scalaVersion := "3.9.0"
 
 ThisBuild / homepage := Some(url("https://github.com/voicetel/scala-sdk"))
@@ -20,7 +20,7 @@ ThisBuild / developers := List(
     url = url("https://voicetel.com")
   )
 )
-ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.10)."
+ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.14)."
 
 val sttpVersion  = "3.10.1"
 val circeVersion = "0.14.10"

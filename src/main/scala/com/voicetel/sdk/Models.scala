@@ -40,7 +40,6 @@ object Models:
       cnam: Option[Boolean] = None,
       bypassMedia: Option[Boolean] = None,
       intl: Option[Boolean] = None,
-      rcid: Option[Boolean] = None,
       mms: Option[Boolean] = None,
       dialer: Option[Boolean] = None,
       sms: Option[Boolean] = None
@@ -307,13 +306,13 @@ object Models:
 
   /** Auth-mode constants for AuthPutRequest.authType and AuthGetData.authType.
     *
-    *  0 = Digest, 1 = IP Auth, 2 = Digest OR IP, 3 = Digest AND IP.
+    *  0 = Digest, 1 = Lax (Digest | IP), 2 = IP, 3 = Strict (Digest + IP).
     */
   object AuthType:
-    val Digest: Int      = 0
-    val IPAuth: Int      = 1
-    val DigestOrIP: Int  = 2
-    val DigestAndIP: Int = 3
+    val Digest: Int = 0
+    val Lax: Int    = 1
+    val IP: Int     = 2
+    val Strict: Int = 3
 
   final case class AuthPutRequest(
       authType: Option[Int] = None,
@@ -558,8 +557,7 @@ object Models:
       pid: Option[String] = None,
       foc: Option[String] = None,
       createdAt: Option[String] = None,
-      message: Option[String] = None,
-      supportUrl: Option[String] = None
+      message: Option[String] = None
   )
   object PortSummary:
     given Codec[PortSummary] = deriveCodec
@@ -590,6 +588,7 @@ object Models:
   object OrderFailedEntry:
     given Codec[OrderFailedEntry] = deriveCodec
 
+  /** amountCharged is the amount deducted from the account balance. */
   final case class OrderCreateData(
       orderId: String,
       amountCharged: Double,
@@ -695,6 +694,11 @@ object Models:
   object MessagingBrandCreateRequest:
     given Codec[MessagingBrandCreateRequest] = deriveCodec
 
+  /** Body for POST /v2.2/messaging/campaigns.
+    *
+    * campaignClassName (from the campaign registry) and campaignStartDate
+    * (today) are auto-populated if omitted.
+    */
   final case class MessagingCampaignCreateRequest(
       messagingBrandId: String,
       externalCampaignId: String,
@@ -758,7 +762,50 @@ object Models:
   object MessagingCampaignCreateData:
     given Codec[MessagingCampaignCreateData] = deriveCodec
 
-  final case class CampaignStatusItem(id: String, status: String, numbers: List[String])
+  /** One carrier's latest DCA decision inside CampaignDca.
+    *
+    * status is ACTIVE, REJECTED, SUSPENDED, UNSUSPENDED or TERMINATED;
+    * detail is the reviewer's note, as given.
+    */
+  final case class CampaignDcaCarrier(
+      carrier: String,
+      status: String,
+      detail: String,
+      updatedAt: String
+  )
+  object CampaignDcaCarrier:
+    given Codec[CampaignDcaCarrier] = deriveCodec
+
+  /** Carrier (DCA) review progress for a campaign.
+    *
+    * electionComplete is true once every carrier has a DCA assigned to review
+    * the campaign. electedCarriers lists the carriers with a DCA assigned so
+    * far (null when unavailable); carriers holds each carrier DCA decision
+    * received, latest per carrier.
+    */
+  final case class CampaignDca(
+      electionComplete: Boolean,
+      electedCarriers: Option[List[String]] = None,
+      carriers: List[CampaignDcaCarrier] = Nil
+  )
+  object CampaignDca:
+    given Codec[CampaignDca] = deriveCodec
+
+  /** A single campaign, its current numbers, and carrier review progress.
+    *
+    * status is CAMPAIGN_DCA_COMPLETE (ready: carrier review finished, numbers
+    * assigned), CAMPAIGN_DCA_COMPLETE_NO_NUMBERS_ASSIGNED, CAMPAIGN_PENDING_DCA
+    * (active at the campaign registry, but carrier (DCA) review is not
+    * finished yet; numbers cannot be enabled until it is), CAMPAIGN_DCA_REJECTED
+    * (a carrier's DCA rejected or suspended the campaign; see dca.carriers),
+    * CAMPAIGN_<registry status>, or CAMPAIGN_INVALID_ID.
+    */
+  final case class CampaignStatusItem(
+      id: String,
+      status: String,
+      numbers: List[String],
+      dca: Option[CampaignDca] = None
+  )
   object CampaignStatusItem:
     given Codec[CampaignStatusItem] = deriveCodec
 
@@ -808,6 +855,12 @@ object Models:
   object NumberSmsRequest:
     given Codec[NumberSmsRequest] = deriveCodec
 
+  /** Body for PATCH /v2.2/numbers/{number}/messaging.
+    *
+    * At least one of routeIn / routeOut must be present. routeIn is a
+    * numbers_sms row id for inbound (0 to detach); routeOut is the outbound
+    * carrier id.
+    */
   final case class NumberMessagingPatchRequest(
       routeIn: Option[Int] = None,
       routeOut: Option[Int] = None
@@ -855,6 +908,29 @@ object Models:
   object CampaignBinding:
     given Codec[CampaignBinding] = deriveCodec
 
+  /** State of an asynchronous (path C) enablement.
+    *
+    * state progresses queued -> hosting -> assigning -> routing -> done, or
+    * failed (see message); the number keeps its previous routing until done.
+    * Attached to a campaign assignment (status "pending") or surfaced by
+    * GET /v2.2/numbers/{number}/messaging while provisioning is in flight.
+    */
+  final case class MessagingEnablementJob(
+      campaignId: String,
+      state: String,
+      message: String,
+      createdAt: String,
+      updatedAt: String
+  )
+  object MessagingEnablementJob:
+    given Codec[MessagingEnablementJob] = deriveCodec
+
+  /** Current messaging routing state for one number.
+    *
+    * network is the messaging path — "A", "B", or "C" — or null when the
+    * carrier is 0 or a non-messaging carrier. pending carries the async
+    * path-C enablement while provisioning is in flight, or null when none.
+    */
   final case class NumberMessagingState(
       number: String,
       onAccount: Option[Boolean] = None,
@@ -863,7 +939,8 @@ object Models:
       routeIn: Int,
       resource: String,
       network: Option[String] = None,
-      campaign: Option[CampaignBinding] = None
+      campaign: Option[CampaignBinding] = None,
+      pending: Option[MessagingEnablementJob] = None
   )
   object NumberMessagingState:
     given Codec[NumberMessagingState] = deriveCodec
@@ -913,14 +990,36 @@ object Models:
   object NumberTranslationData:
     given Codec[NumberTranslationData] = deriveCodec
 
+  /** Result of binding a single number to a 10DLC campaign.
+    *
+    * The campaign must be available to the account and ACTIVE; the number is
+    * enabled on the messaging path the campaign lives on. Idempotent: a
+    * number already bound to the campaign reports status "already".
+    *
+    * status is "enabled" (bound now, path B), "already" (the number was
+    * already bound to this campaign — records reconciled, no new order), or
+    * "pending" (accepted and being provisioned, path C — poll
+    * GET /v2.2/numbers/{number}/messaging (pending) until state is done or
+    * failed). network is the messaging path the campaign resolves to ("B" or
+    * "C") from the CSP sharing record; previousNetwork is the path the number
+    * was bound to before this call ("A" or "B", or null if there was no
+    * prior binding). orderId (a string or number on the wire) is set for
+    * path-B assignments only; path C reports a job instead.
+    */
   final case class NumberMessagingCampaignAssignData(
       number: String,
       campaignId: String,
+      status: String,
       carrier: Int,
       network: Option[String] = None,
       upstreamCnpId: Option[String] = None,
       previousNetwork: Option[String] = None,
-      previousNetworkCleared: Boolean
+      previousNetworkCleared: Boolean,
+      alreadyAssigned: Boolean = false,
+      orderId: Option[Json] = None,
+      warning: Option[String] = None,
+      message: Option[String] = None,
+      job: Option[MessagingEnablementJob] = None
   )
   object NumberMessagingCampaignAssignData:
     given Codec[NumberMessagingCampaignAssignData] = deriveCodec
@@ -957,7 +1056,16 @@ object Models:
   object NumbersMessagingListData:
     given Codec[NumbersMessagingListData] = deriveCodec
 
-  final case class PortOutPinUpdateData(number: String, portOutPin: String)
+  /** Data payload from PATCH /v2.2/numbers/{number}/port-out-pin.
+    *
+    * The call is idempotent: a PIN is locked for 30 days once set, so a
+    * number that already has one returns it unchanged with changed = false.
+    */
+  final case class PortOutPinUpdateData(
+      number: String,
+      portOutPin: String,
+      changed: Boolean
+  )
   object PortOutPinUpdateData:
     given Codec[PortOutPinUpdateData] = deriveCodec
 
