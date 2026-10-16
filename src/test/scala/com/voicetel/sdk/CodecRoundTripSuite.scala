@@ -321,8 +321,8 @@ class CodecRoundTripSuite extends munit.FunSuite:
   }
 
   test("Version constants present") {
-    assertEquals(Version.APIVersion, "v2.2.14")
-    assertEquals(Version.SDKVersion, "2.2.14")
+    assertEquals(Version.APIVersion, "v2.2.15")
+    assertEquals(Version.SDKVersion, "2.2.15")
     assert(Version.DefaultBaseURL.startsWith("https://"))
     assert(Version.DefaultUserAgent.contains("voicetel-scala"))
   }

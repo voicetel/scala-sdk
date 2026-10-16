@@ -2,7 +2,7 @@
 
 The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed, idiomatic Scala 3.
 
-![Version](https://img.shields.io/badge/version-2.2.14-blue)
+![Version](https://img.shields.io/badge/version-2.2.15-blue)
 ![Scala](https://img.shields.io/badge/scala-3.3.x-DC322F)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)
@@ -42,7 +42,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 - **Account** — profile, sub-accounts, CDRs, credits, payments, MRC, registration, password recovery.
 - **e911** — record provisioning, address validation, lookup, removal.
 - **Gateways** — list, create, update, delete, view bound numbers.
-- **Messaging** — SMS & MMS sending, message history, 10DLC brand and campaign registration, per-number messaging state.
+- **Messaging** — SMS & MMS sending, message history, 10DLC brand and campaign registration, per-number messaging state, and messaging health (account overview, per-number live check, spam-blocked samples, alert-email setting).
 - **Lookups** — CNAM and LRN dips.
 - **iNumbering** — inventory search, coverage queries, number orders, port-in submissions, port-out availability.
 - **Support** — ticket create / read / update / delete, threaded messages, replies.
@@ -56,7 +56,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 
 ### 📦 Clean Distribution
 - Zero codegen footprint — every byte hand-written.
-- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.14`); pull with sbt or Maven.
+- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.15`); pull with sbt or Maven.
 - Dependencies kept minimal: sttp client3 (core + circe), circe.
 
 ## 🚀 Installation
@@ -64,7 +64,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 ### sbt
 
 ```scala
-libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.14"
+libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.15"
 ```
 
 ### Maven
@@ -73,7 +73,7 @@ libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.14"
 <dependency>
   <groupId>com.voicetel</groupId>
   <artifactId>voicetel-sdk_3</artifactId>
-  <version>2.2.14</version>
+  <version>2.2.15</version>
 </dependency>
 ```
 
@@ -197,7 +197,7 @@ client.numbers.get("9999999999").recover {
 
 These endpoints are limited to **6 requests per hour per IP**:
 
-- `account/info`
+- `account`
 - `account/cdr`
 - `account/recurring-charges`
 - `account/payments`

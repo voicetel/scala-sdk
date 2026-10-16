@@ -396,6 +396,62 @@ class ResourcesSuite extends munit.FunSuite:
     assertEquals(await(c.messaging.numbersState(List("2015550123"))).numbers, Nil)
   }
 
+  // v2.2.15: messaging-health endpoints have no response schema in the spec, so the
+  // SDK returns the decoded JSON as a raw circe Json; bodies/query are still shaped.
+  test("Messaging.health returns raw JSON") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val data = Json.obj("summary" -> Json.obj("numbers" -> Json.fromInt(3), "healthy" -> Json.fromInt(2)))
+    val c    = clientFor(recordingStub(reqs, envelope(data)))
+    val r    = await(c.messaging.health())
+    assertEquals(r.hcursor.downField("summary").get[Int]("numbers"), Right(3))
+    assertEquals(reqs.head.method, sttp.model.Method.GET)
+    assert(reqs.head.uri.toString.contains("/v2.2/messaging/health"))
+  }
+
+  test("Messaging.healthAlerts returns raw JSON") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val data = Json.obj("enabled" -> Json.True)
+    val c    = clientFor(recordingStub(reqs, envelope(data)))
+    val r    = await(c.messaging.healthAlerts())
+    assertEquals(r.hcursor.get[Boolean]("enabled"), Right(true))
+    assert(reqs.head.uri.toString.contains("/v2.2/messaging/health/alerts"))
+  }
+
+  test("Messaging.setHealthAlerts sends enabled and returns raw JSON") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val data = Json.obj("enabled" -> Json.False)
+    val c    = clientFor(recordingStub(reqs, envelope(data)))
+    val r    = await(c.messaging.setHealthAlerts(false))
+    assertEquals(r.hcursor.get[Boolean]("enabled"), Right(false))
+    assertEquals(reqs.head.method, sttp.model.Method.PUT)
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"enabled\":false"))
+  }
+
+  test("Messaging.healthCheck sends number and returns raw JSON") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val data = Json.obj("number" -> Json.fromString("2125550123"), "inService" -> Json.True)
+    val c    = clientFor(recordingStub(reqs, envelope(data)))
+    val r    = await(c.messaging.healthCheck("2125550123"))
+    assertEquals(r.hcursor.get[Boolean]("inService"), Right(true))
+    assertEquals(reqs.head.method, sttp.model.Method.POST)
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"number\":\"2125550123\""))
+  }
+
+  test("Messaging.healthSamples sends number query and returns raw JSON") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val data = Json.obj("samples" -> Json.arr(Json.obj("reason" -> Json.fromString("spam"))))
+    val c    = clientFor(recordingStub(reqs, envelope(data)))
+    val r    = await(c.messaging.healthSamples("2125550123"))
+    assertEquals(r.hcursor.downField("samples").downArray.get[String]("reason"), Right("spam"))
+    assert(reqs.head.uri.toString.contains("number=2125550123"))
+  }
+
   // ---------------------------------------------------------------- numbers ---
 
   private val numDetail = NumberDetail(
