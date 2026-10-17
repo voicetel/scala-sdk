@@ -33,7 +33,7 @@ final class E911Service(transport: Transport):
 
   /** Fetch the e911 record for `dn`. */
   def get(dn: String)(using ExecutionContext): Future[E911RecordData] =
-    transport.request(Method.GET, s"/v2.2/e911/$dn").flatMap { p =>
+    transport.request(Method.GET, s"/v2.2/e911/${Transport.encodePathSegment(dn)}").flatMap { p =>
       Future.fromTry(Transport.decodeRequired[E911RecordData](p))
     }
 
@@ -41,10 +41,10 @@ final class E911Service(transport: Transport):
   def provision(dn: String, body: E911ProvisionByIDRequest)(using
       ExecutionContext
   ): Future[E911RecordData] =
-    transport.request(Method.PUT, s"/v2.2/e911/$dn", body = Some(body.asJson)).flatMap { p =>
+    transport.request(Method.PUT, s"/v2.2/e911/${Transport.encodePathSegment(dn)}", body = Some(body.asJson)).flatMap { p =>
       Future.fromTry(Transport.decodeRequired[E911RecordData](p))
     }
 
   /** Delete the e911 record for `dn`. Returns Unit on 204 No Content. */
   def remove(dn: String)(using ExecutionContext): Future[Unit] =
-    transport.request(Method.DELETE, s"/v2.2/e911/$dn").map(_ => ())
+    transport.request(Method.DELETE, s"/v2.2/e911/${Transport.encodePathSegment(dn)}").map(_ => ())

@@ -145,9 +145,20 @@ object Models:
   object CdrEntry:
     given Codec[CdrEntry] = deriveCodec
 
-  final case class AccountCdrData(cdr: List[CdrEntry], start: Int, end: Int)
+  final case class AccountCdrData(
+      cdr: List[CdrEntry] = Nil,
+      start: Option[Int] = None,
+      end: Option[Int] = None
+  )
   object AccountCdrData:
-    given Codec[AccountCdrData] = deriveCodec
+    given Encoder[AccountCdrData] = deriveEncoder
+    given Decoder[AccountCdrData] = Decoder.instance { c =>
+      for
+        cdr   <- c.getOrElse[List[CdrEntry]]("cdr")(Nil)
+        start <- c.get[Option[Int]]("start")
+        end   <- c.get[Option[Int]]("end")
+      yield AccountCdrData(cdr, start, end)
+    }
 
   final case class AccountCreditsData(credits: List[CreditEntry])
   object AccountCreditsData:
@@ -157,28 +168,39 @@ object Models:
   object AccountPaymentsData:
     given Codec[AccountPaymentsData] = deriveCodec
 
-  final case class MrcCharge(amount: Double, description: Option[String] = None)
+  final case class MrcCharge(amount: Option[Double] = None, description: Option[String] = None)
   object MrcCharge:
     given Codec[MrcCharge] = deriveCodec
 
-  final case class AccountMrcData(charges: List[MrcCharge], total: Double)
+  final case class AccountMrcData(
+      charges: List[MrcCharge] = Nil,
+      total: Option[Double] = None
+  )
   object AccountMrcData:
-    given Codec[AccountMrcData] = deriveCodec
+    given Encoder[AccountMrcData] = deriveEncoder
+    given Decoder[AccountMrcData] = Decoder.instance { c =>
+      for
+        charges <- c.getOrElse[List[MrcCharge]]("charges")(Nil)
+        total   <- c.get[Option[Double]]("total")
+      yield AccountMrcData(charges, total)
+    }
 
   final case class AccountRegistrationData(
       agent: Option[String] = None,
-      uri: Option[String] = None,
-      expires: Option[Int] = None
+      uri: Option[String] = None
   )
   object AccountRegistrationData:
     given Codec[AccountRegistrationData] = deriveCodec
 
-  /** Body for POST /v2.2/account (admin-only sub-account creation). */
+  /** Body for POST /v2.2/account (admin-only sub-account creation).
+    *
+    * username is a 10-digit numeric string; masterAccount defaults to username.
+    */
   final case class AccountAddRequest(
-      username: Int,
+      username: String,
       name: String,
       email: String,
-      masterAccount: Option[Int] = None
+      masterAccount: Option[String] = None
   )
   object AccountAddRequest:
     given Codec[AccountAddRequest] = deriveCodec
@@ -238,7 +260,7 @@ object Models:
       yield AccountPutRequest(notify, notifyThreshold, timezone, callerId, e911, intl, sms, mms, ccs)
     }
 
-  final case class AccountPutData(updated: List[String])
+  final case class AccountPutData(updated: List[String] = Nil)
   object AccountPutData:
     given Codec[AccountPutData] = deriveCodec
 
@@ -263,7 +285,7 @@ object Models:
   object AccountRecoverData:
     given Codec[AccountRecoverData] = deriveCodec
 
-  final case class AccountApiKeyData(apikey: String)
+  final case class AccountApiKeyData(apikey: Option[String] = None)
   object AccountApiKeyData:
     given Codec[AccountApiKeyData] = deriveCodec
 
@@ -273,15 +295,15 @@ object Models:
   object AclModifyRequest:
     given Codec[AclModifyRequest] = deriveCodec
 
-  final case class AclListData(acl: List[CidrEntry])
+  final case class AclListData(acl: List[CidrEntry] = Nil)
   object AclListData:
     given Codec[AclListData] = deriveCodec
 
-  final case class AclAddData(added: List[CidrEntry])
+  final case class AclAddData(added: List[CidrEntry] = Nil)
   object AclAddData:
     given Codec[AclAddData] = deriveCodec
 
-  final case class AclRemoveData(removed: List[CidrEntry])
+  final case class AclRemoveData(removed: List[CidrEntry] = Nil)
   object AclRemoveData:
     given Codec[AclRemoveData] = deriveCodec
 
@@ -322,18 +344,25 @@ object Models:
     given Codec[AuthPutRequest] = deriveCodec
 
   final case class AuthGetData(
-      authType: Int,
-      authTypeDescription: String,
-      acl: List[CidrEntry]
+      authType: Option[Int] = None,
+      authTypeDescription: Option[String] = None,
+      acl: List[CidrEntry] = Nil
   )
   object AuthGetData:
-    given Codec[AuthGetData] = deriveCodec
+    given Encoder[AuthGetData] = deriveEncoder
+    given Decoder[AuthGetData] = Decoder.instance { c =>
+      for
+        authType            <- c.get[Option[Int]]("authType")
+        authTypeDescription <- c.get[Option[String]]("authTypeDescription")
+        acl                 <- c.getOrElse[List[CidrEntry]]("acl")(Nil)
+      yield AuthGetData(authType, authTypeDescription, acl)
+    }
 
   final case class AuthUpdatedEntry(field: String, value: Option[Int] = None)
   object AuthUpdatedEntry:
     given Codec[AuthUpdatedEntry] = deriveCodec
 
-  final case class AuthPutData(updated: List[AuthUpdatedEntry])
+  final case class AuthPutData(updated: List[AuthUpdatedEntry] = Nil)
   object AuthPutData:
     given Codec[AuthPutData] = deriveCodec
 
@@ -392,7 +421,7 @@ object Models:
   object E911ValidatedAddress:
     given Codec[E911ValidatedAddress] = deriveCodec
 
-  final case class E911AllData(records: List[E911Entry])
+  final case class E911AllData(records: List[E911Entry] = Nil)
   object E911AllData:
     given Codec[E911AllData] = deriveCodec
 
@@ -445,11 +474,11 @@ object Models:
   object GatewayNumberSummary:
     given Codec[GatewayNumberSummary] = deriveCodec
 
-  final case class GatewaysListData(gateways: List[GatewayEntry])
+  final case class GatewaysListData(gateways: List[GatewayEntry] = Nil)
   object GatewaysListData:
     given Codec[GatewaysListData] = deriveCodec
 
-  final case class GatewayNumbersData(numbers: List[GatewayNumberSummary])
+  final case class GatewayNumbersData(numbers: List[GatewayNumberSummary] = Nil)
   object GatewayNumbersData:
     given Codec[GatewayNumbersData] = deriveCodec
 
@@ -529,17 +558,17 @@ object Models:
     given Codec[PortSubmitRequest] = deriveCodec
 
   final case class InventoryItem(
-      number: String,
-      rateCenter: String,
-      city: String,
-      province: String,
-      lata: String
+      number: Option[String] = None,
+      rateCenter: Option[String] = None,
+      city: Option[String] = None,
+      province: Option[String] = None,
+      lata: Option[String] = None
   )
   object InventoryItem:
     given Codec[InventoryItem] = deriveCodec
 
   final case class InventoryCoverageItem(
-      count: Int,
+      count: Option[Int] = None,
       npa: Option[String] = None,
       nxx: Option[String] = None,
       block: Option[String] = None,
@@ -576,11 +605,11 @@ object Models:
   object PortDetail:
     given Codec[PortDetail] = deriveCodec
 
-  final case class InventorySearchData(numbers: List[InventoryItem])
+  final case class InventorySearchData(numbers: List[InventoryItem] = Nil)
   object InventorySearchData:
     given Codec[InventorySearchData] = deriveCodec
 
-  final case class InventoryCoverageData(coverage: List[InventoryCoverageItem])
+  final case class InventoryCoverageData(coverage: List[InventoryCoverageItem] = Nil)
   object InventoryCoverageData:
     given Codec[InventoryCoverageData] = deriveCodec
 
@@ -590,15 +619,15 @@ object Models:
 
   /** amountCharged is the amount deducted from the account balance. */
   final case class OrderCreateData(
-      orderId: String,
-      amountCharged: Double,
-      numbersOrdered: List[String],
+      orderId: Option[String] = None,
+      amountCharged: Option[Double] = None,
+      numbersOrdered: List[String] = Nil,
       failed: List[OrderFailedEntry] = Nil
   )
   object OrderCreateData:
     given Codec[OrderCreateData] = deriveCodec
 
-  final case class PortListData(ports: List[PortSummary])
+  final case class PortListData(ports: List[PortSummary] = Nil)
   object PortListData:
     given Codec[PortListData] = deriveCodec
 
@@ -607,11 +636,11 @@ object Models:
     given Codec[PortDetailData] = deriveCodec
 
   final case class PortSubmitData(
-      pid: String,
-      ticket: Int,
-      message: String,
-      loaUrl: String,
-      portUrl: String
+      pid: Option[String] = None,
+      ticket: Option[Int] = None,
+      message: Option[String] = None,
+      loaUrl: Option[String] = None,
+      portUrl: Option[String] = None
   )
   object PortSubmitData:
     given Codec[PortSubmitData] = deriveCodec
@@ -631,26 +660,38 @@ object Models:
   object PortAvailabilityData:
     given Codec[PortAvailabilityData] = deriveCodec
 
-  /** Query filters for INumberingService.searchInventory. */
+  /** Query for INumberingService.searchInventory (GET /v2.2/inventory).
+    *
+    * tnMask (required) is a prefix or wildcard pattern: `201`, `201555`,
+    * `201555*`. quantity caps results at 1–1000 (default 10). province is a
+    * 2-letter US state or Canadian province code; rateCenter a rate-center
+    * name; lata a LATA code.
+    */
   final case class InventoryQuery(
-      npa: Option[Int] = None,
-      nxx: Option[Int] = None,
-      state: Option[String] = None,
+      tnMask: String,
+      quantity: Option[Int] = None,
+      province: Option[String] = None,
       rateCenter: Option[String] = None,
-      contains: Option[String] = None,
-      endsWith: Option[String] = None,
-      limit: Option[Int] = None
+      lata: Option[String] = None
   )
 
-  /** Query filters for INumberingService.coverage. */
+  /** Query for INumberingService.coverage (GET /v2.2/inventory/coverage).
+    *
+    * countBy (required) is the aggregation dimension: one of `state`, `city`,
+    * `rateCenter`, `npanxx`, `block`. The remaining fields are optional filters.
+    */
   final case class CoverageQuery(
-      state: Option[String] = None,
-      rateCenter: Option[String] = None
+      countBy: String,
+      locState: Option[String] = None,
+      city: Option[String] = None,
+      rcAbbre: Option[String] = None,
+      npa: Option[String] = None,
+      lata: Option[String] = None
   )
 
   // ---------------------------------------------------------------- lookups ---
 
-  final case class CnamData(cnam: Option[String] = None, number: String)
+  final case class CnamData(cnam: Option[String] = None, number: Option[String] = None)
   object CnamData:
     given Codec[CnamData] = deriveCodec
 
@@ -669,7 +710,11 @@ object Models:
   object LrnData:
     given Codec[LrnData] = deriveCodec
 
-  final case class LrnLookupData(ani: String, destination: String, lrn: LrnData)
+  final case class LrnLookupData(
+      ani: Option[String] = None,
+      destination: Option[String] = None,
+      lrn: Option[LrnData] = None
+  )
   object LrnLookupData:
     given Codec[LrnLookupData] = deriveCodec
 
@@ -714,7 +759,7 @@ object Models:
       destinationNumber: Option[String] = None,
       direction: Option[String] = None,
       rate: Option[String] = None,
-      number: Option[Long] = None,
+      number: Option[String] = None,
       message: Option[String] = None
   )
   object MessageRecordValue:
@@ -725,21 +770,30 @@ object Models:
     given Codec[MessageRecord] = deriveCodec
 
   final case class MessageHistoryData(
-      number: String,
-      `type`: String,
-      fromTs: Int,
-      toTs: Int,
-      messages: List[MessageRecord]
+      number: Option[String] = None,
+      `type`: Option[String] = None,
+      fromTs: Option[Int] = None,
+      toTs: Option[Int] = None,
+      messages: List[MessageRecord] = Nil
   )
   object MessageHistoryData:
-    given Codec[MessageHistoryData] = deriveCodec
+    given Encoder[MessageHistoryData] = deriveEncoder
+    given Decoder[MessageHistoryData] = Decoder.instance { c =>
+      for
+        number   <- c.get[Option[String]]("number")
+        tpe      <- c.get[Option[String]]("type")
+        fromTs   <- c.get[Option[Int]]("fromTs")
+        toTs     <- c.get[Option[Int]]("toTs")
+        messages <- c.getOrElse[List[MessageRecord]]("messages")(Nil)
+      yield MessageHistoryData(number, tpe, fromTs, toTs, messages)
+    }
 
   final case class MessageSendData(
-      id: String,
-      `type`: String,
-      fromNumber: String,
-      toNumber: String,
-      parts: Int,
+      id: Option[String] = None,
+      `type`: Option[String] = None,
+      fromNumber: Option[String] = None,
+      toNumber: Option[String] = None,
+      parts: Option[Int] = None,
       subject: Option[String] = None,
       mediaUrls: List[String] = Nil
   )
@@ -801,23 +855,28 @@ object Models:
     * CAMPAIGN_<registry status>, or CAMPAIGN_INVALID_ID.
     */
   final case class CampaignStatusItem(
-      id: String,
-      status: String,
-      numbers: List[String],
+      id: Option[String] = None,
+      status: Option[String] = None,
+      numbers: List[String] = Nil,
       dca: Option[CampaignDca] = None
   )
   object CampaignStatusItem:
     given Codec[CampaignStatusItem] = deriveCodec
 
-  final case class MessagingCampaignStatusData(campaigns: List[CampaignStatusItem])
+  final case class MessagingCampaignStatusData(campaigns: List[CampaignStatusItem] = Nil)
   object MessagingCampaignStatusData:
     given Codec[MessagingCampaignStatusData] = deriveCodec
 
-  /** Optional query filters for MessagingService.history. */
+  /** Query for MessagingService.history (GET /v2.2/messages).
+    *
+    * number (required) is the 10-digit TN whose records are returned. from/to
+    * are Unix timestamps bounding the (inclusive) range — from defaults to now,
+    * to defaults to 24h ago. `type` is sms (default), mms, or dlr.
+    */
   final case class HistoryOptions(
-      number: Option[String] = None,
-      start: Option[Int] = None,
-      end: Option[Int] = None,
+      number: String,
+      from: Option[Int] = None,
+      to: Option[Int] = None,
       `type`: Option[String] = None
   )
 
@@ -880,30 +939,26 @@ object Models:
   object PortOutPinUpdateRequest:
     given Codec[PortOutPinUpdateRequest] = deriveCodec
 
-  final case class BulkUnassignRequest(numbers: List[String])
-  object BulkUnassignRequest:
-    given Codec[BulkUnassignRequest] = deriveCodec
-
   final case class NumberDetail(
-      number: String,
-      translated: String,
-      route: Int,
+      number: Option[String] = None,
+      translated: Option[String] = None,
+      route: Option[Int] = None,
       gateway: Option[String] = None,
-      cnam: Boolean,
-      forward: Boolean,
+      cnam: Option[Boolean] = None,
+      forward: Option[Boolean] = None,
       forwardTo: Option[String] = None,
-      carrier: Int,
-      smsEnabled: Boolean,
-      faxEnabled: Boolean
+      carrier: Option[Int] = None,
+      smsEnabled: Option[Boolean] = None,
+      faxEnabled: Option[Boolean] = None
   )
   object NumberDetail:
     given Codec[NumberDetail] = deriveCodec
 
   final case class CampaignBinding(
-      id: String,
-      network: String,
-      status: String,
-      upstreamCnpId: String
+      id: Option[String] = None,
+      network: Option[String] = None,
+      status: Option[String] = None,
+      upstreamCnpId: Option[String] = None
   )
   object CampaignBinding:
     given Codec[CampaignBinding] = deriveCodec
@@ -916,11 +971,11 @@ object Models:
     * GET /v2.2/numbers/{number}/messaging while provisioning is in flight.
     */
   final case class MessagingEnablementJob(
-      campaignId: String,
-      state: String,
-      message: String,
-      createdAt: String,
-      updatedAt: String
+      campaignId: Option[String] = None,
+      state: Option[String] = None,
+      message: Option[String] = None,
+      createdAt: Option[String] = None,
+      updatedAt: Option[String] = None
   )
   object MessagingEnablementJob:
     given Codec[MessagingEnablementJob] = deriveCodec
@@ -932,12 +987,12 @@ object Models:
     * path-C enablement while provisioning is in flight, or null when none.
     */
   final case class NumberMessagingState(
-      number: String,
+      number: Option[String] = None,
       onAccount: Option[Boolean] = None,
-      enabled: Boolean,
-      carrier: Int,
-      routeIn: Int,
-      resource: String,
+      enabled: Option[Boolean] = None,
+      carrier: Option[Int] = None,
+      routeIn: Option[Int] = None,
+      resource: Option[String] = None,
       network: Option[String] = None,
       campaign: Option[CampaignBinding] = None,
       pending: Option[MessagingEnablementJob] = None
@@ -945,48 +1000,65 @@ object Models:
   object NumberMessagingState:
     given Codec[NumberMessagingState] = deriveCodec
 
-  final case class NumberAddData(number: String, route: Int)
+  final case class NumberAddData(number: Option[String] = None, route: Option[Int] = None)
   object NumberAddData:
     given Codec[NumberAddData] = deriveCodec
 
-  final case class NumberCnamData(number: String, cnam: Boolean)
+  final case class NumberCnamData(number: Option[String] = None, cnam: Option[Boolean] = None)
   object NumberCnamData:
     given Codec[NumberCnamData] = deriveCodec
 
-  final case class NumberFaxData(number: String, email: String)
+  final case class NumberFaxData(number: Option[String] = None, email: Option[String] = None)
   object NumberFaxData:
     given Codec[NumberFaxData] = deriveCodec
 
-  final case class NumberForwardData(number: String, forwardTo: Option[String] = None)
+  final case class NumberForwardData(
+      number: Option[String] = None,
+      forwardTo: Option[String] = None
+  )
   object NumberForwardData:
     given Codec[NumberForwardData] = deriveCodec
 
   final case class NumberLidbData(
-      number: String,
-      cnam: String,
-      customerOrderReference: String,
-      carrierStatus: String
+      number: Option[String] = None,
+      cnam: Option[String] = None,
+      customerOrderReference: Option[String] = None,
+      carrierStatus: Option[String] = None
   )
   object NumberLidbData:
     given Codec[NumberLidbData] = deriveCodec
 
-  final case class NumberMessagingPatchData(number: String, updated: List[String])
+  final case class NumberMessagingPatchData(
+      number: Option[String] = None,
+      updated: List[String] = Nil
+  )
   object NumberMessagingPatchData:
     given Codec[NumberMessagingPatchData] = deriveCodec
 
-  final case class NumberMoveData(number: String, accountId: Int, route: Int)
+  final case class NumberMoveData(
+      number: Option[String] = None,
+      accountId: Option[Int] = None,
+      route: Option[Int] = None
+  )
   object NumberMoveData:
     given Codec[NumberMoveData] = deriveCodec
 
-  final case class NumberRouteData(number: String, route: Int)
+  final case class NumberRouteData(number: Option[String] = None, route: Option[Int] = None)
   object NumberRouteData:
     given Codec[NumberRouteData] = deriveCodec
 
-  final case class NumberSmsData(number: String, `type`: String, resource: String)
+  final case class NumberSmsData(
+      number: Option[String] = None,
+      `type`: Option[String] = None,
+      resource: Option[String] = None
+  )
   object NumberSmsData:
     given Codec[NumberSmsData] = deriveCodec
 
-  final case class NumberTranslationData(number: String, translation: String)
+  final case class NumberTranslationData(
+      number: Option[String] = None,
+      translation: Option[String] = None
+  )
   object NumberTranslationData:
     given Codec[NumberTranslationData] = deriveCodec
 
@@ -1007,14 +1079,14 @@ object Models:
     * path-B assignments only; path C reports a job instead.
     */
   final case class NumberMessagingCampaignAssignData(
-      number: String,
-      campaignId: String,
-      status: String,
-      carrier: Int,
+      number: Option[String] = None,
+      campaignId: Option[String] = None,
+      status: Option[String] = None,
+      carrier: Option[Int] = None,
       network: Option[String] = None,
       upstreamCnpId: Option[String] = None,
       previousNetwork: Option[String] = None,
-      previousNetworkCleared: Boolean,
+      previousNetworkCleared: Option[Boolean] = None,
       alreadyAssigned: Boolean = false,
       orderId: Option[Json] = None,
       warning: Option[String] = None,
@@ -1025,11 +1097,11 @@ object Models:
     given Codec[NumberMessagingCampaignAssignData] = deriveCodec
 
   final case class NumberMessagingCampaignUnassignData(
-      number: String,
-      campaignId: String,
+      number: Option[String] = None,
+      campaignId: Option[String] = None,
       network: Option[String] = None,
       upstreamCnpId: Option[String] = None,
-      unassigned: Boolean
+      unassigned: Option[Boolean] = None
   )
   object NumberMessagingCampaignUnassignData:
     given Codec[NumberMessagingCampaignUnassignData] = deriveCodec
@@ -1039,20 +1111,20 @@ object Models:
     given Codec[CampaignUnassignFailure] = deriveCodec
 
   final case class NumbersMessagingCampaignUnassignData(
-      campaignId: String,
+      campaignId: Option[String] = None,
       network: Option[String] = None,
       upstreamCnpId: Option[String] = None,
-      unassignedNumbers: List[String],
+      unassignedNumbers: List[String] = Nil,
       failed: List[CampaignUnassignFailure] = Nil
   )
   object NumbersMessagingCampaignUnassignData:
     given Codec[NumbersMessagingCampaignUnassignData] = deriveCodec
 
-  final case class NumbersListData(numbers: List[NumberDetail])
+  final case class NumbersListData(numbers: List[NumberDetail] = Nil)
   object NumbersListData:
     given Codec[NumbersListData] = deriveCodec
 
-  final case class NumbersMessagingListData(numbers: List[NumberMessagingState])
+  final case class NumbersMessagingListData(numbers: List[NumberMessagingState] = Nil)
   object NumbersMessagingListData:
     given Codec[NumbersMessagingListData] = deriveCodec
 
@@ -1062,9 +1134,9 @@ object Models:
     * number that already has one returns it unchanged with changed = false.
     */
   final case class PortOutPinUpdateData(
-      number: String,
-      portOutPin: String,
-      changed: Boolean
+      number: Option[String] = None,
+      portOutPin: Option[String] = None,
+      changed: Option[Boolean] = None
   )
   object PortOutPinUpdateData:
     given Codec[PortOutPinUpdateData] = deriveCodec
@@ -1308,15 +1380,18 @@ object Models:
   object TicketData:
     given Codec[TicketData] = deriveCodec
 
-  final case class TicketsListData(tickets: List[SupportConversation])
+  final case class TicketsListData(
+      tickets: List[SupportConversation] = Nil,
+      totalCount: Option[Int] = None
+  )
   object TicketsListData:
     given Codec[TicketsListData] = deriveCodec
 
-  final case class TicketThreadsData(messages: List[SupportThread])
+  final case class TicketThreadsData(messages: List[SupportThread] = Nil)
   object TicketThreadsData:
     given Codec[TicketThreadsData] = deriveCodec
 
-  final case class TicketReplyData(message: String)
+  final case class TicketReplyData(message: Option[String] = None)
   object TicketReplyData:
     given Codec[TicketReplyData] = deriveCodec
 

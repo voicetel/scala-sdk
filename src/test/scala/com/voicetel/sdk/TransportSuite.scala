@@ -16,15 +16,26 @@ class TransportSuite extends munit.FunSuite:
   test("login installs bearer and returns api key") {
     val backend = stubOk(envelope(Json.obj("apikey" -> Json.fromString("32hex"))))
     val client  = unauthClient(backend)
-    val key     = Await.result(client.login(1000000001, "hunter2"), 5.seconds)
+    val key     = Await.result(client.login("1000000001", "hunter2"), 5.seconds)
     assertEquals(key, "32hex")
     assertEquals(client.apiKey, "32hex")
+  }
+
+  test("login sends username as a JSON string") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val backend = recordingStub(reqs, envelope(Json.obj("apikey" -> Json.fromString("32hex"))))
+    val client  = unauthClient(backend)
+    Await.result(client.login("1000000001", "hunter2"), 5.seconds)
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"username\":\"1000000001\""), sent)
   }
 
   test("login rejects empty apikey response") {
     val backend = stubOk(envelope(Json.obj("apikey" -> Json.fromString(""))))
     val client  = unauthClient(backend)
-    val t       = intercept[ApiError](Await.result(client.login(1, "p"), 5.seconds))
+    val t       = intercept[ApiError](Await.result(client.login("1", "p"), 5.seconds))
     assertEquals(t.kind, ErrorKind.Authentication)
   }
 
@@ -41,7 +52,19 @@ class TransportSuite extends munit.FunSuite:
     val t       = intercept[ApiError](Await.result(client.account.get(), 5.seconds))
     assertEquals(t.kind, ErrorKind.BadRequest)
     assertEquals(t.statusCode, 400)
-    assertEquals(t.code, Some("X"))
+    assertEquals(t.code, Some("400"))
+    assertEquals(t.getMessage, "server is angry")
+  }
+
+  test("spec errorResponse envelope: nested error.code/error.message are parsed") {
+    val body    = """{"status":"error","error":{"code":409,"message":"CIDR overlaps with existing entry"}}"""
+    val backend = stubStatus(409, body)
+    val client  = clientFor(backend)
+    val t       = intercept[ApiError](Await.result(client.account.get(), 5.seconds))
+    assertEquals(t.kind, ErrorKind.Conflict)
+    assertEquals(t.code, Some("409"))
+    assertEquals(t.getMessage, "CIDR overlaps with existing entry")
+    assert(t.body.exists(_.contains("\"status\":\"error\"")))
   }
 
   test("HTTP 401 maps to ErrorKind.Authentication") {
@@ -172,6 +195,15 @@ class TransportSuite extends munit.FunSuite:
     val client  = clientFor(backend)
     val t       = intercept[ApiError](Await.result(client.account.get(), 5.seconds))
     assertEquals(t.kind, ErrorKind.Unknown)
+  }
+
+  test("non-JSON 2xx body surfaces an error instead of a silent empty payload") {
+    val backend = stubOk("<html>not json</html>")
+    val client  = clientFor(backend)
+    val t       = intercept[ApiError](Await.result(client.account.get(), 5.seconds))
+    assertEquals(t.kind, ErrorKind.Unknown)
+    assert(t.getMessage.contains("non-JSON"))
+    assert(t.body.exists(_.contains("not json")))
   }
 
   test("empty success body for endpoint expecting JSON raises ApiError") {

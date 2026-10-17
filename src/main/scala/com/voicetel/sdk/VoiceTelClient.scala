@@ -50,28 +50,31 @@ final class VoiceTelClient private (
 
   /** Exchange username + password for a 32-hex API key and install it.
     *
-    * Counts against the 6 req/hour/IP rate limit shared by every `account`
-    * endpoint (cdr, mrc, payments, registration, api-key).
+    * username is the 10-digit numeric account id as a string (account ids
+    * exceed the Int range). Counts against the 6 req/hour/IP rate limit shared
+    * by GET /v2.2/account, GET /v2.2/account/cdr, GET
+    * /v2.2/account/recurring-charges, and POST /v2.2/account/api-key.
     */
-  def login(username: Int, password: String)(using
+  def login(username: String, password: String)(using
       ExecutionContext
   ): Future[String] =
     val body = Json.obj(
-      "username" -> Json.fromInt(username),
+      "username" -> Json.fromString(username),
       "password" -> Json.fromString(password)
     )
     transport
       .request(Method.POST, "/v2.2/account/api-key", body = Some(body), requireAuth = false)
       .flatMap { payload =>
         Future.fromTry(Transport.decodeRequired[AccountApiKeyData](payload)).map { data =>
-          if data.apikey.isEmpty then
+          val key = data.apikey.getOrElse("")
+          if key.isEmpty then
             throw ApiError(
               ErrorKind.Authentication,
               0,
               "api-key response did not contain data.apikey"
             )
-          transport.setBearer(data.apikey)
-          data.apikey
+          transport.setBearer(key)
+          key
         }
       }
 

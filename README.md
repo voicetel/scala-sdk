@@ -2,8 +2,8 @@
 
 The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed, idiomatic Scala 3.
 
-![Version](https://img.shields.io/badge/version-2.2.15-blue)
-![Scala](https://img.shields.io/badge/scala-3.3.x-DC322F)
+![Version](https://img.shields.io/badge/version-2.2.16-blue)
+![Scala](https://img.shields.io/badge/scala-3.9-DC322F)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)
 
@@ -25,7 +25,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 ## ✨ Features
 
 ### 🛡️ Strongly Typed End-to-End
-- **Native Scala 3 case classes** for every one of the 73 API operations, JSON-encoded via Circe.
+- **Native Scala 3 case classes** for every one of the 79 API operations, JSON-encoded via Circe.
 - **`Option[T]` for nullable fields** — distinguish "not set" from default values cleanly.
 - **Sealed `enum` types** for error kinds and order-number variants — exhaustive pattern matching at compile time.
 - **`Future[T]` everywhere.** No effect-system lock-in; bring your own `ExecutionContext`.
@@ -56,7 +56,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 
 ### 📦 Clean Distribution
 - Zero codegen footprint — every byte hand-written.
-- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.15`); pull with sbt or Maven.
+- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.16`); pull with sbt or Maven.
 - Dependencies kept minimal: sttp client3 (core + circe), circe.
 
 ## 🚀 Installation
@@ -64,7 +64,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 ### sbt
 
 ```scala
-libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.15"
+libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.16"
 ```
 
 ### Maven
@@ -73,11 +73,11 @@ libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.15"
 <dependency>
   <groupId>com.voicetel</groupId>
   <artifactId>voicetel-sdk_3</artifactId>
-  <version>2.2.15</version>
+  <version>2.2.16</version>
 </dependency>
 ```
 
-Requires Scala 3.3.x (LTS) and JDK 11+.
+Requires Scala 3.9 and JDK 11+.
 
 ## 🏁 Quickstart
 
@@ -93,14 +93,14 @@ import scala.concurrent.duration.*
 
   try
     // Exchange username + password for an API key (one-time per session)
-    Await.result(client.login(1000000001, "hunter2"), 30.seconds)
+    Await.result(client.login("1000000001", "hunter2"), 30.seconds)
 
     val me = Await.result(client.account.get(), 30.seconds)
-    println(s"Balance: $$${me.cash.getOrElse(0.0)}%.2f  |  Caller ID: ${me.callerId.getOrElse("")}")
+    println(f"Balance: $$${me.cash.getOrElse(0.0)}%.2f  |  Caller ID: ${me.callerId.getOrElse("")}")
 
     val numbers = Await.result(client.numbers.list(), 30.seconds)
     numbers.numbers.foreach { n =>
-      println(s"${n.number}  route=${n.route}  cnam=${n.cnam}  sms=${n.smsEnabled}")
+      println(s"${n.number.getOrElse("")}  route=${n.route.getOrElse("-")}  cnam=${n.cnam.getOrElse(false)}  sms=${n.smsEnabled.getOrElse(false)}")
     }
   finally client.close()
 ```
@@ -114,7 +114,7 @@ import scala.concurrent.ExecutionContext
 given ExecutionContext = ExecutionContext.global
 
 val client = VoiceTelClient(VoiceTelClientConfig(apiKey = "32hex..."))
-val coverage = client.iNumbering.coverage(CoverageQuery(state = Some("NJ")))
+val coverage = client.iNumbering.coverage(CoverageQuery(countBy = "state", locState = Some("NJ")))
 ```
 
 ## 🔑 Authentication
@@ -127,7 +127,7 @@ Re-fetch the API key after any password change — the old one is invalidated.
 
 ```scala
 val client = VoiceTelClient()
-val key    = Await.result(client.login(1000000001, "hunter2"), 30.seconds)
+val key    = Await.result(client.login("1000000001", "hunter2"), 30.seconds)
 // `key` is the new 32-hex bearer; the client already has it installed.
 ```
 
@@ -140,7 +140,7 @@ val key    = Await.result(client.login(1000000001, "hunter2"), 30.seconds)
 | Authentication | `client.authentication` | `client.authentication.update(AuthPutRequest(authType = Some(1)))` |
 | e911 | `client.e911` | `client.e911.validate(E911AddressRequest(...))` |
 | Gateways | `client.gateways` | `client.gateways.list()` |
-| iNumbering | `client.iNumbering` | `client.iNumbering.searchInventory(InventoryQuery(npa = Some(201)))` |
+| iNumbering | `client.iNumbering` | `client.iNumbering.searchInventory(InventoryQuery(tnMask = "201*"))` |
 | Lookups | `client.lookups` | `client.lookups.lrn("2015550123", "2015550100")` |
 | Messaging | `client.messaging` | `client.messaging.send(MessageSendRequest(...))` |
 | Numbers | `client.numbers` | `client.numbers.assignCampaign("2015550123", ...)` |
@@ -197,12 +197,13 @@ client.numbers.get("9999999999").recover {
 
 These endpoints are limited to **6 requests per hour per IP**:
 
-- `account`
-- `account/cdr`
-- `account/recurring-charges`
-- `account/payments`
-- `account/registration`
-- `account/api-key` (`client.login`)
+- `GET /v2.2/account` (`client.account.get`)
+- `GET /v2.2/account/cdr` (`client.account.cdr`)
+- `GET /v2.2/account/recurring-charges` (`client.account.recurringCharges`)
+- `POST /v2.2/account/api-key` (`client.login`)
+
+`POST /v2.2/messaging/health/check` (`client.messaging.healthCheck`) is limited
+to **30 checks per hour per account**.
 
 The SDK automatically retries 429 responses with `Retry-After` honored, up to `maxRetries` (default 2). To bump it:
 
@@ -226,10 +227,10 @@ sbt test
 sbt clean coverage test coverageReport
 
 # Open HTML report
-xdg-open target/scala-3.3.4/scoverage-report/index.html
+xdg-open target/scala-3.9.0/scoverage-report/index.html
 ```
 
-Integration tests are gated behind env vars. Export `VOICETEL_USERNAME` (numeric account id) and `VOICETEL_PASSWORD` to run them:
+Integration tests are gated behind env vars. Export `VOICETEL_USERNAME` (the 10-digit numeric account id, as a string) and `VOICETEL_PASSWORD` to run them:
 
 ```bash
 export VOICETEL_USERNAME=1000000001

@@ -21,8 +21,13 @@ final class AclService(transport: Transport):
       Future.fromTry(Transport.decodeRequired[AclAddData](p))
     }
 
-  /** Remove CIDR entries from the allowlist (returns 200 with a body). */
-  def remove(body: AclModifyRequest)(using ExecutionContext): Future[AclRemoveData] =
-    transport.request(Method.DELETE, "/v2.2/acl", body = Some(body.asJson)).flatMap { p =>
-      Future.fromTry(Transport.decodeRequired[AclRemoveData](p))
-    }
+  /** Remove CIDR entries from the allowlist. cidrs (required) is a list of
+    * CIDR blocks, sent as a comma-separated query parameter — DELETE carries no
+    * body. Returns 200 with a body.
+    */
+  def remove(cidrs: List[String])(using ExecutionContext): Future[AclRemoveData] =
+    transport
+      .request(Method.DELETE, "/v2.2/acl", query = Seq("cidrs" -> cidrs.mkString(",")))
+      .flatMap { p =>
+        Future.fromTry(Transport.decodeRequired[AclRemoveData](p))
+      }

@@ -1,7 +1,7 @@
 ThisBuild / organization := "com.voicetel"
 ThisBuild / organizationName := "VoiceTel Communications"
 ThisBuild / organizationHomepage := Some(url("https://voicetel.com"))
-ThisBuild / version := "2.2.15"
+ThisBuild / version := "2.2.16"
 ThisBuild / scalaVersion := "3.9.0"
 
 ThisBuild / homepage := Some(url("https://github.com/voicetel/scala-sdk"))
@@ -20,7 +20,12 @@ ThisBuild / developers := List(
     url = url("https://voicetel.com")
   )
 )
-ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.15)."
+ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.16)."
+
+// Publish via the Central Portal (the legacy OSSRH host oss.sonatype.org is
+// sunset). Requires the sbt-sonatype plugin; release with `sbt
+// sonatypeCentralUpload` / `publishSigned` per the sbt-sonatype docs.
+ThisBuild / sonatypeCredentialHost := sonatypeCentral
 
 val sttpVersion  = "3.10.1"
 val circeVersion = "0.14.10"
@@ -46,12 +51,6 @@ lazy val root = (project in file("."))
     testFrameworks += new TestFramework("munit.Framework"),
     Test / parallelExecution := false,
     publishMavenStyle := true,
-    publishTo := {
-      val nexus = "https://oss.sonatype.org/"
-      if (isSnapshot.value)
-        Some("snapshots" at nexus + "content/repositories/snapshots")
-      else
-        Some("releases" at nexus + "service/local/staging/deploy/maven2")
-    },
+    publishTo := sonatypePublishToBundle.value,
     pomIncludeRepository := { _ => false }
   )

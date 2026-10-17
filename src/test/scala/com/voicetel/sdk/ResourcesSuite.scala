@@ -18,69 +18,99 @@ class ResourcesSuite extends munit.FunSuite:
   // ---------------------------------------------------------------- Account ---
 
   test("Account.get decodes profile") {
-    val data = AccountData(username = Some("1000000001"), name = Some("Test"))
-    val c    = clientFor(stubOk(envelopeOf(data)))
-    val r    = await(c.account.get())
+    val raw =
+      """{"status":"success","data":{"username":"1000000001","name":"Test","email":"e@x.com",""" +
+        """"enabled":true,"created":"2024-01-01T00:00:00Z","cash":12.5,"callerId":"2015550123",""" +
+        """"timezone":"UTC","authType":0,"ccs":1,"notify":true,"notifyThreshold":5,""" +
+        """"rates":{"sms":0.005},"services":{"sms":true}}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.account.get())
     assertEquals(r.username, Some("1000000001"))
+    assertEquals(r.notifyEnabled, Some(true))
+    assertEquals(r.rates.flatMap(_.sms), Some(0.005))
   }
 
   test("Account.update sends notify and decodes Updated list") {
-    val resp = AccountPutData(updated = List("timezone"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val c    = clientFor(recordingStub(reqs, """{"status":"success","data":{"updated":["timezone"]}}"""))
     val r = await(c.account.update(AccountPutRequest(timezone = Some("UTC"), notifyEnabled = Some(true))))
     assertEquals(r.updated, List("timezone"))
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"notify\":true"), sent)
   }
 
-  test("Account.add returns AccountAddData") {
-    val resp = AccountAddData(username = Some("1000000002"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.account.add(AccountAddRequest(2, "n", "e@x.com")))
+  test("Account.add sends username as a string and decodes AccountAddData") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"username":"1000000002","name":"n","email":"e@x.com",""" +
+        """"password":"pw","masterAccount":"1000000001"}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(c.account.add(AccountAddRequest("1000000002", "n", "e@x.com", Some("1000000001"))))
     assertEquals(r.username, Some("1000000002"))
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"username\":\"1000000002\""), sent)
+    assert(sent.contains("\"masterAccount\":\"1000000001\""), sent)
   }
 
-  test("Account.signup returns AccountSignupData") {
-    val resp = AccountSignupData(username = Some("X"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.account.signup(AccountSignupRequest("n", "e@x.com")))
-    assertEquals(r.username, Some("X"))
+  test("Account.signup is public (no Authorization header) and decodes") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"username":"1000000003","password":"pw","name":"n","email":"e@x.com"}}"""
+    val c = unauthClient(recordingStub(reqs, raw))
+    val r = await(c.account.signup(AccountSignupRequest("n", "e@x.com")))
+    assertEquals(r.username, Some("1000000003"))
+    assertEquals(reqs.head.header("Authorization"), None)
   }
 
   test("Account.cdr accepts start/end and decodes") {
-    val resp = AccountCdrData(cdr = Nil, start = 1, end = 2)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.account.cdr(Some(1), Some(2)))
-    assertEquals(r.start, 1)
+    val raw =
+      """{"status":"success","data":{"cdr":[{"id":"x","key":["1000000001","1747345200"],""" +
+        """"value":{"dur":"40","dst":"2025550106","ba":"0.017500"}}],"start":1,"end":2}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.account.cdr(Some(1), Some(2)))
+    assertEquals(r.start, Some(1))
+    assertEquals(r.cdr.head.value.dur, Some("40"))
   }
 
-  test("Account.credits decodes") {
-    val resp = AccountCreditsData(credits = List(CreditEntry("2026-01-01", true, 12.34)))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.account.credits())
+  test("Account.credits decodes and sends the optional status filter") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"credits":[{"paid":true,"date":"2026-01-01","amount":12.34}]}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(c.account.credits(Some("unpaid")))
     assertEquals(r.credits.head.amount, 12.34)
+    assertEquals(reqs.head.uri.paramsMap.get("status"), Some("unpaid"))
   }
 
   test("Account.recurringCharges decodes") {
-    val resp = AccountMrcData(charges = List(MrcCharge(1.0)), total = 1.0)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.account.recurringCharges()).total, 1.0)
+    val raw =
+      """{"status":"success","data":{"charges":[{"amount":1.0,"description":"d"}],"total":1.0}}"""
+    val c = clientFor(stubOk(raw))
+    assertEquals(await(c.account.recurringCharges()).total, Some(1.0))
   }
 
   test("Account.payments decodes") {
-    val resp = AccountPaymentsData(payments = List(PaymentEntry(date = "x", status = "Completed", amount = 9.99)))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
+    val raw =
+      """{"status":"success","data":{"payments":[{"amount":9.99,"date":"2024-09-30T12:52:59+00:00",""" +
+        """"status":"Completed","transactionId":"2N045992R140725E3","payerEmail":"e@x.com"}]}}"""
+    val c = clientFor(stubOk(raw))
     assertEquals(await(c.account.payments()).payments.head.status, "Completed")
   }
 
   test("Account.registration decodes") {
-    val resp = AccountRegistrationData(agent = Some("ua"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.account.registration()).agent, Some("ua"))
+    val raw =
+      """{"status":"success","data":{"agent":"Zoiper rv2.8.97/","uri":"sip:4592086960@192.0.2.1:5060"}}"""
+    val c = clientFor(stubOk(raw))
+    assertEquals(await(c.account.registration()).agent, Some("Zoiper rv2.8.97/"))
   }
 
   test("Account.recover decodes") {
-    val resp = AccountRecoverData(message = Some("ok"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.account.recover(AccountRecoverRequest("e@x.com")))
+    val c = clientFor(stubOk("""{"status":"success","data":{"message":"ok"}}"""))
+    val r = await(c.account.recover(AccountRecoverRequest("e@x.com")))
     assertEquals(r.message, Some("ok"))
   }
 
@@ -99,19 +129,24 @@ class ResourcesSuite extends munit.FunSuite:
     assertEquals(r.added.size, 1)
   }
 
-  test("ACL.remove decodes (200 with body)") {
-    val resp = AclRemoveData(removed = List(CidrEntry("203.0.113.0/24")))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.acl.remove(AclModifyRequest(List(CidrEntry("203.0.113.0/24")))))
+  test("ACL.remove sends cidrs query param, no body (200 with body)") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw  = """{"status":"success","data":{"removed":[{"cidr":"203.0.113.0/24"}]}}"""
+    val c    = clientFor(recordingStub(reqs, raw))
+    val r    = await(c.acl.remove(List("203.0.113.0/24", "203.0.113.1/32")))
     assertEquals(r.removed.size, 1)
+    assertEquals(reqs.head.method, sttp.model.Method.DELETE)
+    assertEquals(reqs.head.uri.paramsMap.get("cidrs"), Some("203.0.113.0/24,203.0.113.1/32"))
+    assertEquals(reqs.head.body, sttp.client3.NoBody)
   }
 
   // -------------------------------------------------------- Authentication ---
 
   test("Authentication.get decodes") {
-    val resp = AuthGetData(authType = 1, authTypeDescription = "IP Auth", acl = Nil)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.authentication.get()).authType, 1)
+    val raw =
+      """{"status":"success","data":{"authType":1,"authTypeDescription":"IP Auth","acl":[{"cidr":"203.0.113.0/24"}]}}"""
+    val c = clientFor(stubOk(raw))
+    assertEquals(await(c.authentication.get()).authType, Some(1))
   }
 
   test("Authentication.update decodes") {
@@ -213,23 +248,55 @@ class ResourcesSuite extends munit.FunSuite:
 
   // ---------------------------------------------------------------- iNumbering ---
 
-  test("INumbering.searchInventory decodes and serializes query") {
-    val resp = InventorySearchData(numbers = List(InventoryItem("2015550123", "RC", "C", "NJ", "224")))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r = await(c.iNumbering.searchInventory(InventoryQuery(npa = Some(201), state = Some("NJ"))))
-    assertEquals(r.numbers.head.number, "2015550123")
+  test("INumbering.searchInventory sends spec query params and decodes") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"numbers":[{"number":"2015550103","rateCenter":"CLOSTER",""" +
+        """"city":"Closter","province":"NJ","lata":"224"}]}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(
+      c.iNumbering.searchInventory(
+        InventoryQuery(
+          tnMask = "201*",
+          quantity = Some(10),
+          province = Some("NJ"),
+          rateCenter = Some("CLOSTER"),
+          lata = Some("224")
+        )
+      )
+    )
+    assertEquals(r.numbers.head.number, Some("2015550103"))
+    assertEquals(r.numbers.head.rateCenter, Some("CLOSTER"))
+    val params = reqs.head.uri.paramsMap
+    assertEquals(params.get("tnMask"), Some("201*"))
+    assertEquals(params.get("quantity"), Some("10"))
+    assertEquals(params.get("province"), Some("NJ"))
+    assertEquals(params.get("rateCenter"), Some("CLOSTER"))
+    assertEquals(params.get("lata"), Some("224"))
+    assert(!params.contains("npa"), params.toString)
+    assert(!params.contains("state"), params.toString)
   }
 
-  test("INumbering.coverage decodes (default query)") {
-    val resp = InventoryCoverageData(coverage = List(InventoryCoverageItem(count = 5, npa = Some("201"))))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.iNumbering.coverage())
-    assertEquals(r.coverage.head.count, 5)
+  test("INumbering.coverage sends countBy and decodes") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"coverage":[{"count":270026,"npa":"201","nxx":"908","locState":"NJ"}]}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(
+      c.iNumbering.coverage(CoverageQuery(countBy = "npanxx", locState = Some("NJ"), lata = Some("224")))
+    )
+    assertEquals(r.coverage.head.count, Some(270026))
+    val params = reqs.head.uri.paramsMap
+    assertEquals(params.get("countBy"), Some("npanxx"))
+    assertEquals(params.get("locState"), Some("NJ"))
+    assertEquals(params.get("lata"), Some("224"))
   }
 
   test("INumbering.order decodes with mixed Value/Spec entries") {
-    val resp = OrderCreateData(orderId = "O1", amountCharged = 1.0, numbersOrdered = List("2015550123"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
+    val raw =
+      """{"status":"success","data":{"orderId":"O1","amountCharged":1.0,""" +
+        """"numbersOrdered":["2015550123"],"failed":[]}}"""
+    val c = clientFor(stubOk(raw))
     val r = await(
       c.iNumbering.order(
         OrderCreateRequest(
@@ -240,24 +307,36 @@ class ResourcesSuite extends munit.FunSuite:
         )
       )
     )
-    assertEquals(r.orderId, "O1")
+    assertEquals(r.orderId, Some("O1"))
   }
 
   test("INumbering.ports decodes") {
-    val resp = PortListData(ports = List(PortSummary("submitted", id = Some("1"))))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.iNumbering.ports()).ports.head.status, "submitted")
+    val raw =
+      """{"status":"success","data":{"ports":[{"status":"submitted",""" +
+        """"id":"fedcba9876543210fedcba9876543210fedcba98","pid":"w1476"}]}}"""
+    val c = clientFor(stubOk(raw))
+    assertEquals(await(c.iNumbering.ports()).ports.head.pid, Some("w1476"))
   }
 
-  test("INumbering.port decodes") {
-    val resp = PortDetailData(PortDetail("submitted", id = Some("42")))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.iNumbering.port(42)).port.id, Some("42"))
+  test("INumbering.port decodes by 5-char pid") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"port":{"status":"Complete",""" +
+        """"id":"fedcba9876543210fedcba9876543210fedcba98","pid":"w1476",""" +
+        """"numbers":["2015550123"]}}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(c.iNumbering.port("w1476"))
+    assertEquals(r.port.pid, Some("w1476"))
+    assert(reqs.head.uri.toString.contains("/v2.2/ports/w1476"))
   }
 
   test("INumbering.submitPort decodes") {
-    val resp = PortSubmitData(pid = "ABCDE", ticket = 1, message = "ok", loaUrl = "u", portUrl = "u")
-    val c    = clientFor(stubOk(envelopeOf(resp)))
+    val raw =
+      """{"status":"success","data":{"pid":"a3a2a","ticket":2114,""" +
+        """"message":"Port request a3a2a submitted. Please complete the LOA to proceed.",""" +
+        """"loaUrl":"https://api.voicetel.com/a/loa/a3a2a/",""" +
+        """"portUrl":"https://api.voicetel.com/a/port/a3a2a/"}}"""
+    val c = clientFor(stubOk(raw))
     val r = await(
       c.iNumbering.submitPort(
         PortSubmitRequest(
@@ -268,17 +347,15 @@ class ResourcesSuite extends munit.FunSuite:
         )
       )
     )
-    assertEquals(r.pid, "ABCDE")
+    assertEquals(r.pid, Some("a3a2a"))
+    assertEquals(r.ticket, Some(2114))
   }
 
   test("INumbering.portAvailability decodes v2.2.10 fields") {
-    val resp = PortAvailabilityData(
-      number = "2015550102",
-      portable = true,
-      localRoutingNumber = Some("2015550100"),
-      rateCenterTier = Some("tier1")
-    )
-    val c = clientFor(stubOk(envelopeOf(resp)))
+    val raw =
+      """{"status":"success","data":{"number":"2015550102","portable":true,""" +
+        """"localRoutingNumber":"2015550100","rateCenterTier":"tier1"}}"""
+    val c = clientFor(stubOk(raw))
     val r = await(c.iNumbering.portAvailability("2015550102"))
     assertEquals(r.localRoutingNumber, Some("2015550100"))
     assertEquals(r.rateCenterTier, Some("tier1"))
@@ -287,54 +364,86 @@ class ResourcesSuite extends munit.FunSuite:
   // ---------------------------------------------------------------- lookups ---
 
   test("Lookups.cnam decodes") {
-    val resp = CnamData(cnam = Some("ACME"), number = "2015550123")
+    val resp = CnamData(cnam = Some("ACME"), number = Some("2015550123"))
     val c    = clientFor(stubOk(envelopeOf(resp)))
     assertEquals(await(c.lookups.cnam("2015550123")).cnam, Some("ACME"))
   }
 
   test("Lookups.lrn decodes") {
-    val resp = LrnLookupData(ani = "2015550123", destination = "2015550100", lrn = LrnData(lrn = Some("2015550100")))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.lookups.lrn("2015550100", "2015550123")).lrn.lrn, Some("2015550100"))
+    val resp = LrnLookupData(
+      ani = Some("2015550123"),
+      destination = Some("2015550100"),
+      lrn = Some(LrnData(lrn = Some("2015550100")))
+    )
+    val c = clientFor(stubOk(envelopeOf(resp)))
+    assertEquals(await(c.lookups.lrn("2015550100", "2015550123")).lrn.flatMap(_.lrn), Some("2015550100"))
   }
 
   // ---------------------------------------------------------------- messaging ---
 
-  test("Messaging.history decodes") {
-    val resp = MessageHistoryData("2015550123", "sms", 1, 2, Nil)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.messaging.history(HistoryOptions(number = Some("2015550123"), `type` = Some("sms"))))
-    assertEquals(r.`type`, "sms")
+  test("Messaging.history sends spec query params and decodes (value.number is a string)") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","type":"sms","fromTs":1747345200,""" +
+        """"toTs":1747258800,"messages":[{"id":"0123456789abcdef0123456789abcdef01234567",""" +
+        """"key":["2015550123","1747345200"],"value":{"direction":"in","rate":"0.0150",""" +
+        """"message":"hi","number":"2015550123"}}]}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(
+      c.messaging.history(
+        HistoryOptions(
+          number = "2015550123",
+          from = Some(1747345200),
+          to = Some(1747258800),
+          `type` = Some("sms")
+        )
+      )
+    )
+    assertEquals(r.`type`, Some("sms"))
+    assertEquals(r.messages.head.value.number, Some("2015550123"))
+    val params = reqs.head.uri.paramsMap
+    assertEquals(params.get("number"), Some("2015550123"))
+    assertEquals(params.get("from"), Some("1747345200"))
+    assertEquals(params.get("to"), Some("1747258800"))
+    assertEquals(params.get("type"), Some("sms"))
+    assert(!params.contains("start"), params.toString)
+    assert(!params.contains("end"), params.toString)
   }
 
   test("Messaging.send uses wire fields fromNumber/toNumber") {
-    val resp = MessageSendData("msgid", "sms", "2015550100", "2015550123", 1)
+    val raw =
+      """{"status":"success","data":{"id":"msgid","type":"sms","fromNumber":"2015550100",""" +
+        """"toNumber":"2015550123","parts":1,"subject":"example","mediaUrls":["example"]}}"""
     val backend = SttpBackendStub
       .asynchronousFuture
       .whenRequestMatches { req =>
         val body = req.body match
           case sttp.client3.StringBody(s, _, _) => s
-          case _                                 => ""
+          case _                                => ""
         body.contains("\"fromNumber\":\"2015550100\"") &&
         body.contains("\"toNumber\":\"2015550123\"")
       }
-      .thenRespond(envelopeOf(resp))
+      .thenRespond(raw)
     val c = clientFor(backend)
     val r = await(c.messaging.send(MessageSendRequest("2015550100", "2015550123", "hi")))
-    assertEquals(r.fromNumber, "2015550100")
+    assertEquals(r.fromNumber, Some("2015550100"))
+    assertEquals(r.mediaUrls, List("example"))
   }
 
   test("Messaging.createBrand decodes") {
-    val resp = MessagingBrandCreateData(BrandRegistrationResult("200", "Success"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.messaging.createBrand(MessagingBrandCreateRequest("BABC", "ACME")))
+    val raw = """{"status":"success","data":{"result":{"statusCode":"200","status":"Success"}}}"""
+    val c   = clientFor(stubOk(raw))
+    val r   = await(c.messaging.createBrand(MessagingBrandCreateRequest("BABC", "ACME")))
     assertEquals(r.result.status, "Success")
   }
 
-  test("Messaging.campaignStatus decodes") {
-    val resp = MessagingCampaignStatusData(campaigns = Nil)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.messaging.campaignStatus()).campaigns, Nil)
+  test("Messaging.campaignStatus sends required ids query param and decodes") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw  = """{"status":"success","data":{"campaigns":[]}}"""
+    val c    = clientFor(recordingStub(reqs, raw))
+    val r    = await(c.messaging.campaignStatus(List("CAMP002", "NOPEID1")))
+    assertEquals(r.campaigns, Nil)
+    assertEquals(reqs.head.uri.paramsMap.get("ids"), Some("CAMP002,NOPEID1"))
   }
 
   test("Messaging.campaignStatus decodes carrier (DCA) review progress") {
@@ -374,7 +483,8 @@ class ResourcesSuite extends munit.FunSuite:
       )
     )))
     val c     = clientFor(stubOk(raw))
-    val camps = await(c.messaging.campaignStatus()).campaigns
+    val camps = await(c.messaging.campaignStatus(List("CAMP002", "NOPEID1"))).campaigns
+    assertEquals(camps.head.id, Some("CAMP002"))
     assertEquals(camps.head.dca.map(_.electionComplete), Some(false))
     assertEquals(camps.head.dca.flatMap(_.electedCarriers).map(_.size), Some(6))
     assertEquals(camps.head.dca.map(_.carriers.map(_.status)), Some(List("ACTIVE", "REJECTED")))
@@ -383,17 +493,24 @@ class ResourcesSuite extends munit.FunSuite:
   }
 
   test("Messaging.createCampaign decodes") {
-    val resp = MessagingCampaignCreateData(CampaignRegistrationResult("200", "Success"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.messaging.createCampaign(MessagingCampaignCreateRequest("B", "C", "desc")))
+    val raw = """{"status":"success","data":{"result":{"statusCode":"200","status":"Success"}}}"""
+    val c   = clientFor(stubOk(raw))
+    val r   = await(c.messaging.createCampaign(MessagingCampaignCreateRequest("B", "C", "desc")))
     assertEquals(r.result.statusCode, "200")
   }
 
-  test("Messaging.numbersState decodes") {
-    val resp = NumbersMessagingListData(numbers = Nil)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.messaging.numbersState()).numbers, Nil)
-    assertEquals(await(c.messaging.numbersState(List("2015550123"))).numbers, Nil)
+  test("Messaging.numbersState sends required numbers query param and decodes") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"numbers":[{"number":"2015550123","onAccount":true,""" +
+        """"enabled":true,"carrier":17,"routeIn":1,"resource":"https://example.com/sms",""" +
+        """"network":"B","campaign":{"id":"CAMP002","status":"ACTIVE","network":"B",""" +
+        """"upstreamCnpId":"CAMP003"}}]}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(c.messaging.numbersState(List("2015550123", "2015550100")))
+    assertEquals(r.numbers.head.carrier, Some(17))
+    assertEquals(r.numbers.head.campaign.flatMap(_.id), Some("CAMP002"))
+    assertEquals(reqs.head.uri.paramsMap.get("numbers"), Some("2015550123,2015550100"))
   }
 
   // v2.2.15: messaging-health endpoints have no response schema in the spec, so the
@@ -454,27 +571,27 @@ class ResourcesSuite extends munit.FunSuite:
 
   // ---------------------------------------------------------------- numbers ---
 
-  private val numDetail = NumberDetail(
-    number = "2015550123", translated = "2015550123", route = 4,
-    gateway = None, cnam = false, forward = false, forwardTo = None,
-    carrier = 0, smsEnabled = false, faxEnabled = false
-  )
+  private val numDetailJson =
+    """{"number":"2015550123","translated":"2015550123","route":4,"gateway":null,""" +
+      """"cnam":false,"forward":false,"forwardTo":null,"carrier":0,"smsEnabled":false,""" +
+      """"faxEnabled":false}"""
 
   test("Numbers.list decodes") {
-    val resp = NumbersListData(numbers = List(numDetail))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.numbers.list()).numbers.head.number, "2015550123")
+    val raw = s"""{"status":"success","data":{"numbers":[$numDetailJson]}}"""
+    val c   = clientFor(stubOk(raw))
+    val r   = await(c.numbers.list())
+    assertEquals(r.numbers.head.number, Some("2015550123"))
+    assertEquals(r.numbers.head.route, Some(4))
   }
 
   test("Numbers.add decodes") {
-    val resp = NumberAddData("2015550123", 4)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.numbers.add(NumberAddRequest("2015550123"))).route, 4)
+    val c = clientFor(stubOk("""{"status":"success","data":{"number":"2015550123","route":4}}"""))
+    assertEquals(await(c.numbers.add(NumberAddRequest("2015550123"))).route, Some(4))
   }
 
   test("Numbers.get decodes") {
-    val c = clientFor(stubOk(envelopeOf(numDetail)))
-    assertEquals(await(c.numbers.get("2015550123")).number, "2015550123")
+    val c = clientFor(stubOk(s"""{"status":"success","data":$numDetailJson}"""))
+    assertEquals(await(c.numbers.get("2015550123")).number, Some("2015550123"))
   }
 
   test("Numbers.remove and .release return Unit on 204") {
@@ -488,35 +605,40 @@ class ResourcesSuite extends munit.FunSuite:
   }
 
   test("Numbers.move decodes") {
-    val resp = NumberMoveData("2015550123", 1, 4)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.numbers.move("2015550123", NumberMoveRequest(1, 4))).accountId, 1)
+    val raw = """{"status":"success","data":{"number":"2015550123","accountId":1,"route":4}}"""
+    val c   = clientFor(stubOk(raw))
+    assertEquals(await(c.numbers.move("2015550123", NumberMoveRequest(1, 4))).accountId, Some(1))
   }
 
   test("Numbers route/translation/cnam/lidb setters") {
-    val rRoute = NumberRouteData("2015550123", 7)
-    val rTr    = NumberTranslationData("2015550123", "2015551235")
-    val rCnam  = NumberCnamData("2015550123", true)
-    val rLidb  = NumberLidbData("2015550123", "ACME", "ref", "Success")
+    val rRoute = """{"status":"success","data":{"number":"2015550123","route":7}}"""
+    val rTr    = """{"status":"success","data":{"number":"2015550123","translation":"2015551235"}}"""
+    val rCnam  = """{"status":"success","data":{"number":"2015550123","cnam":true}}"""
+    val rLidb  =
+      """{"status":"success","data":{"number":"2015550123","cnam":"ACME",""" +
+        """"customerOrderReference":"ref","carrierStatus":"Success"}}"""
     val backend = SttpBackendStub
       .asynchronousFuture
-      .whenRequestMatches(_.uri.path.lastOption.contains("route")).thenRespond(envelopeOf(rRoute))
-      .whenRequestMatches(_.uri.path.lastOption.contains("translation")).thenRespond(envelopeOf(rTr))
-      .whenRequestMatches(_.uri.path.lastOption.contains("cnam")).thenRespond(envelopeOf(rCnam))
-      .whenRequestMatches(_.uri.path.lastOption.contains("lidb")).thenRespond(envelopeOf(rLidb))
+      .whenRequestMatches(_.uri.path.lastOption.contains("route")).thenRespond(rRoute)
+      .whenRequestMatches(_.uri.path.lastOption.contains("translation")).thenRespond(rTr)
+      .whenRequestMatches(_.uri.path.lastOption.contains("cnam")).thenRespond(rCnam)
+      .whenRequestMatches(_.uri.path.lastOption.contains("lidb")).thenRespond(rLidb)
     val c = clientFor(backend)
-    assertEquals(await(c.numbers.setRoute("2015550123", NumberRouteRequest(7))).route, 7)
-    assertEquals(await(c.numbers.setTranslation("2015550123", NumberTranslationRequest("2015551235"))).translation, "2015551235")
-    assertEquals(await(c.numbers.setCnam("2015550123", NumberCnamRequest(true))).cnam, true)
-    assertEquals(await(c.numbers.setLidb("2015550123", NumberLidbRequest("ACME"))).cnam, "ACME")
+    assertEquals(await(c.numbers.setRoute("2015550123", NumberRouteRequest(7))).route, Some(7))
+    assertEquals(
+      await(c.numbers.setTranslation("2015550123", NumberTranslationRequest("2015551235"))).translation,
+      Some("2015551235")
+    )
+    assertEquals(await(c.numbers.setCnam("2015550123", NumberCnamRequest(true))).cnam, Some(true))
+    assertEquals(await(c.numbers.setLidb("2015550123", NumberLidbRequest("ACME"))).cnam, Some("ACME"))
   }
 
   test("Numbers fax getter and setter") {
-    val resp    = NumberFaxData("2015550123", "f@x.com")
-    val backend = stubOk(envelopeOf(resp))
+    val raw     = """{"status":"success","data":{"number":"2015550123","email":"f@x.com"}}"""
+    val backend = stubOk(raw)
     val c       = clientFor(backend)
-    assertEquals(await(c.numbers.getFax("2015550123")).email, "f@x.com")
-    assertEquals(await(c.numbers.setFax("2015550123", NumberFaxRequest("f@x.com"))).email, "f@x.com")
+    assertEquals(await(c.numbers.getFax("2015550123")).email, Some("f@x.com"))
+    assertEquals(await(c.numbers.setFax("2015550123", NumberFaxRequest("f@x.com"))).email, Some("f@x.com"))
   }
 
   test("Numbers fax/forward/sms DELETE return Unit on 204") {
@@ -531,29 +653,37 @@ class ResourcesSuite extends munit.FunSuite:
   }
 
   test("Numbers.setForward decodes") {
-    val resp = NumberForwardData("2015550123", Some("2125550123"))
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.numbers.setForward("2015550123", NumberForwardRequest("2125550123")))
+    val raw = """{"status":"success","data":{"number":"2015550123","forwardTo":"2125550123"}}"""
+    val c   = clientFor(stubOk(raw))
+    val r   = await(c.numbers.setForward("2015550123", NumberForwardRequest("2125550123")))
     assertEquals(r.forwardTo, Some("2125550123"))
   }
 
   test("Numbers SMS get/set") {
-    val resp = NumberSmsData("2015550123", "email", "f@x.com")
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.numbers.getSms("2015550123")).resource, "f@x.com")
-    assertEquals(await(c.numbers.setSms("2015550123", NumberSmsRequest("email", "f@x.com"))).resource, "f@x.com")
+    val raw = """{"status":"success","data":{"number":"2015550123","type":"email","resource":"f@x.com"}}"""
+    val c   = clientFor(stubOk(raw))
+    assertEquals(await(c.numbers.getSms("2015550123")).resource, Some("f@x.com"))
+    assertEquals(
+      await(c.numbers.setSms("2015550123", NumberSmsRequest("email", "f@x.com"))).resource,
+      Some("f@x.com")
+    )
   }
 
   test("Numbers.getMessaging and patchMessaging") {
-    val state = NumberMessagingState("2015550123", None, true, 17, 1, "r", None, None)
-    val patch = NumberMessagingPatchData("2015550123", List("routeIn"))
+    val state =
+      """{"status":"success","data":{"number":"2015550123","enabled":true,"carrier":17,""" +
+        """"routeIn":1,"resource":"r","network":"A"}}"""
+    val patch = """{"status":"success","data":{"number":"2015550123","updated":["routeIn"]}}"""
     val backend = SttpBackendStub
       .asynchronousFuture
-      .whenRequestMatches(_.method == sttp.model.Method.GET).thenRespond(envelopeOf(state))
-      .whenRequestMatches(_.method == sttp.model.Method.PATCH).thenRespond(envelopeOf(patch))
+      .whenRequestMatches(_.method == sttp.model.Method.GET).thenRespond(state)
+      .whenRequestMatches(_.method == sttp.model.Method.PATCH).thenRespond(patch)
     val c = clientFor(backend)
-    assertEquals(await(c.numbers.getMessaging("2015550123")).carrier, 17)
-    assertEquals(await(c.numbers.patchMessaging("2015550123", NumberMessagingPatchRequest(routeIn = Some(1)))).updated, List("routeIn"))
+    assertEquals(await(c.numbers.getMessaging("2015550123")).carrier, Some(17))
+    assertEquals(
+      await(c.numbers.patchMessaging("2015550123", NumberMessagingPatchRequest(routeIn = Some(1)))).updated,
+      List("routeIn")
+    )
   }
 
   test("Numbers.getMessaging decodes pending path-C job") {
@@ -575,45 +705,60 @@ class ResourcesSuite extends munit.FunSuite:
     val c = clientFor(stubOk(raw))
     val r = await(c.numbers.getMessaging("2015550123"))
     assertEquals(r.network, Some("C"))
-    assertEquals(r.pending.map(_.campaignId), Some("CAMP002"))
-    assertEquals(r.pending.map(_.state), Some("assigning"))
+    assertEquals(r.pending.flatMap(_.campaignId), Some("CAMP002"))
+    assertEquals(r.pending.flatMap(_.state), Some("assigning"))
   }
 
   test("Numbers campaign assign") {
-    val assign = NumberMessagingCampaignAssignData(
-      number = "2015550123", campaignId = "C1", status = "pending", carrier = 1,
-      network = Some("C"), upstreamCnpId = Some("BANDW"), previousNetwork = Some("A"),
-      previousNetworkCleared = false, message = Some("provisioning started"),
-      job = Some(MessagingEnablementJob("C1", "queued", "accepted", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z"))
-    )
-    val c = clientFor(stubOk(envelopeOf(assign)))
-    val r = await(c.numbers.assignCampaign("2015550123", NumberCampaignAssignRequest("C1")))
-    assertEquals(r.campaignId, "C1")
-    assertEquals(r.status, "pending")
-    assertEquals(r.job.map(_.state), Some("queued"))
+    val raw =
+      """{"status":"success","data":{"number":"6185550104","campaignId":"CAMP002",""" +
+        """"status":"pending","network":"C","upstreamCnpId":"BANDW","carrier":1,""" +
+        """"alreadyAssigned":false,"previousNetwork":null,"previousNetworkCleared":false,""" +
+        """"orderId":null,"warning":null,""" +
+        """"message":"Enablement accepted; the number is being provisioned with the messaging provider (typically minutes, sometimes longer).",""" +
+        """"job":{"campaignId":"CAMP002","state":"queued","message":"Queued",""" +
+        """"createdAt":"2026-10-13T09:30:00+00:00","updatedAt":"2026-10-13T09:30:00+00:00"}}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.numbers.assignCampaign("6185550104", NumberCampaignAssignRequest("CAMP002")))
+    assertEquals(r.campaignId, Some("CAMP002"))
+    assertEquals(r.status, Some("pending"))
+    assertEquals(r.alreadyAssigned, false)
+    assertEquals(r.job.flatMap(_.state), Some("queued"))
   }
 
-  test("Numbers campaign unassign (single)") {
-    val unassign = NumberMessagingCampaignUnassignData("2015550123", "C1", Some("A"), Some("X"), true)
-    val c        = clientFor(stubOk(envelopeOf(unassign)))
-    assertEquals(await(c.numbers.unassignCampaign("2015550123")).unassigned, true)
+  test("Numbers campaign unassign (single) sends campaignId query param, no body") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","campaignId":"CAMP002","network":"A",""" +
+        """"upstreamCnpId":"CAMP004","unassigned":true}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(c.numbers.unassignCampaign("2015550123", "CAMP002"))
+    assertEquals(r.unassigned, Some(true))
+    assertEquals(reqs.head.method, sttp.model.Method.DELETE)
+    assertEquals(reqs.head.uri.paramsMap.get("campaignId"), Some("CAMP002"))
+    assertEquals(reqs.head.body, sttp.client3.NoBody)
   }
 
-  test("Numbers campaign bulk unassign") {
-    val bulk = NumbersMessagingCampaignUnassignData("C1", Some("A"), Some("X"), List("2015550123"))
-    val c    = clientFor(stubOk(envelopeOf(bulk)))
-    assertEquals(
-      await(c.numbers.bulkUnassignCampaign(List("2015550123"))).unassignedNumbers,
-      List("2015550123")
-    )
+  test("Numbers campaign bulk unassign sends numbers+campaignId query params, no body") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"campaignId":"CAMP002","network":"A","upstreamCnpId":"CAMP004",""" +
+        """"unassignedNumbers":["2015550123"],"failed":[]}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(c.numbers.bulkUnassignCampaign(List("2015550123", "2015550100"), "CAMP002"))
+    assertEquals(r.unassignedNumbers, List("2015550123"))
+    assertEquals(reqs.head.uri.paramsMap.get("numbers"), Some("2015550123,2015550100"))
+    assertEquals(reqs.head.uri.paramsMap.get("campaignId"), Some("CAMP002"))
+    assertEquals(reqs.head.body, sttp.client3.NoBody)
   }
 
   test("Numbers.setPortOutPin decodes") {
-    val resp = PortOutPinUpdateData("2015550123", "1234", changed = true)
-    val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.numbers.setPortOutPin("2015550123", PortOutPinUpdateRequest("1234")))
-    assertEquals(r.portOutPin, "1234")
-    assertEquals(r.changed, true)
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","portOutPin":"1234","changed":true}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.numbers.setPortOutPin("2015550123", PortOutPinUpdateRequest("1234")))
+    assertEquals(r.portOutPin, Some("1234"))
+    assertEquals(r.changed, Some(true))
   }
 
   // ---------------------------------------------------------------- support ---
@@ -622,17 +767,21 @@ class ResourcesSuite extends munit.FunSuite:
     id = Some(1), ticketNumber = Some(1015), status = "active", subject = Some("hi")
   )
 
-  test("Support.list decodes ticketNumber from wire 'number' field") {
-    val raw = envelope(Json.obj("tickets" -> Json.arr(
-      Json.obj(
-        "id"     -> Json.fromInt(1),
-        "number" -> Json.fromInt(1015),
-        "status" -> Json.fromString("active")
+  test("Support.list decodes ticketNumber from wire 'number' field, plus totalCount") {
+    val raw = envelope(Json.obj(
+      "totalCount" -> Json.fromInt(1),
+      "tickets" -> Json.arr(
+        Json.obj(
+          "id"     -> Json.fromInt(1),
+          "number" -> Json.fromInt(1015),
+          "status" -> Json.fromString("active")
+        )
       )
-    )))
+    ))
     val c = clientFor(stubOk(raw))
     val r = await(c.support.list())
     assertEquals(r.tickets.head.ticketNumber, Some(1015))
+    assertEquals(r.totalCount, Some(1))
   }
 
   test("Support.create decodes") {
@@ -667,9 +816,9 @@ class ResourcesSuite extends munit.FunSuite:
   }
 
   test("Support.reply decodes") {
-    val resp = TicketReplyData("Reply added")
+    val resp = TicketReplyData(Some("Reply added"))
     val c    = clientFor(stubOk(envelopeOf(resp)))
-    assertEquals(await(c.support.reply(1, TicketReplyRequest("ok"))).message, "Reply added")
+    assertEquals(await(c.support.reply(1, TicketReplyRequest("ok"))).message, Some("Reply added"))
   }
 
   // ---------------------------------------------------------------- error path ---
@@ -685,7 +834,7 @@ class ResourcesSuite extends munit.FunSuite:
     // account
     shouldFail(c.account.get(), "account.get")
     shouldFail(c.account.update(AccountPutRequest(timezone = Some("UTC"))), "account.update")
-    shouldFail(c.account.add(AccountAddRequest(1, "n", "e@x.com")), "account.add")
+    shouldFail(c.account.add(AccountAddRequest("1000000002", "n", "e@x.com")), "account.add")
     shouldFail(c.account.signup(AccountSignupRequest("n", "e@x.com")), "account.signup")
     shouldFail(c.account.cdr(Some(1), Some(2)), "account.cdr")
     shouldFail(c.account.credits(), "account.credits")
@@ -696,7 +845,7 @@ class ResourcesSuite extends munit.FunSuite:
     // acl
     shouldFail(c.acl.list(), "acl.list")
     shouldFail(c.acl.add(acl), "acl.add")
-    shouldFail(c.acl.remove(acl), "acl.remove")
+    shouldFail(c.acl.remove(List("203.0.113.0/24")), "acl.remove")
     // auth
     shouldFail(c.authentication.get(), "auth.get")
     shouldFail(c.authentication.update(AuthPutRequest(authType = Some(1))), "auth.update")
@@ -718,12 +867,12 @@ class ResourcesSuite extends munit.FunSuite:
     shouldFail(c.lookups.cnam("2015550123"), "lookups.cnam")
     shouldFail(c.lookups.lrn("2015550100", "2015550123"), "lookups.lrn")
     // messaging
-    shouldFail(c.messaging.history(HistoryOptions()), "messaging.history")
+    shouldFail(c.messaging.history(HistoryOptions(number = "2015550123")), "messaging.history")
     shouldFail(c.messaging.send(MessageSendRequest("2015550100", "2015550123", "hi")), "messaging.send")
     shouldFail(c.messaging.createBrand(MessagingBrandCreateRequest("BABC", "X")), "messaging.createBrand")
-    shouldFail(c.messaging.campaignStatus(), "messaging.campaignStatus")
+    shouldFail(c.messaging.campaignStatus(List("CAMP002")), "messaging.campaignStatus")
     shouldFail(c.messaging.createCampaign(MessagingCampaignCreateRequest("B", "C", "d")), "messaging.createCampaign")
-    shouldFail(c.messaging.numbersState(), "messaging.numbersState")
+    shouldFail(c.messaging.numbersState(List("2015550123")), "messaging.numbersState")
     // numbers
     shouldFail(c.numbers.list(), "numbers.list")
     shouldFail(c.numbers.add(numReq), "numbers.add")
@@ -746,15 +895,15 @@ class ResourcesSuite extends munit.FunSuite:
     shouldFail(c.numbers.getMessaging("2015550123"), "numbers.getMessaging")
     shouldFail(c.numbers.patchMessaging("2015550123", NumberMessagingPatchRequest(routeIn = Some(1))), "numbers.patchMessaging")
     shouldFail(c.numbers.assignCampaign("2015550123", NumberCampaignAssignRequest("C1")), "numbers.assignCampaign")
-    shouldFail(c.numbers.unassignCampaign("2015550123"), "numbers.unassignCampaign")
-    shouldFail(c.numbers.bulkUnassignCampaign(List("2015550123")), "numbers.bulkUnassignCampaign")
+    shouldFail(c.numbers.unassignCampaign("2015550123", "C1"), "numbers.unassignCampaign")
+    shouldFail(c.numbers.bulkUnassignCampaign(List("2015550123"), "C1"), "numbers.bulkUnassignCampaign")
     shouldFail(c.numbers.setPortOutPin("2015550123", PortOutPinUpdateRequest("1234")), "numbers.setPortOutPin")
     // iNumbering
-    shouldFail(c.iNumbering.searchInventory(InventoryQuery(state = Some("NJ"))), "iNumbering.searchInventory")
-    shouldFail(c.iNumbering.coverage(), "iNumbering.coverage")
+    shouldFail(c.iNumbering.searchInventory(InventoryQuery(tnMask = "201*")), "iNumbering.searchInventory")
+    shouldFail(c.iNumbering.coverage(CoverageQuery(countBy = "state")), "iNumbering.coverage")
     shouldFail(c.iNumbering.order(OrderCreateRequest(List(OrderNumber.Value("2015550123")))), "iNumbering.order")
     shouldFail(c.iNumbering.ports(), "iNumbering.ports")
-    shouldFail(c.iNumbering.port(1), "iNumbering.port")
+    shouldFail(c.iNumbering.port("w1476"), "iNumbering.port")
     shouldFail(
       c.iNumbering.submitPort(
         PortSubmitRequest(

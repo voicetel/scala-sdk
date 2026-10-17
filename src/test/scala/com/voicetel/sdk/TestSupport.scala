@@ -61,7 +61,7 @@ object TestSupport:
   def envelopeOf[A: io.circe.Encoder](a: A): String =
     envelope(a.asJson)
 
-  /** Common error body. */
-  val errorBody: String = """{"code":"X","message":"server is angry"}"""
+  /** Common error body, in the spec's errorResponse shape. */
+  val errorBody: String = """{"status":"error","error":{"code":400,"message":"server is angry"}}"""
 
   given scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global

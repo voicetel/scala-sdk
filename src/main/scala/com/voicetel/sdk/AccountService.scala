@@ -8,12 +8,13 @@ import scala.concurrent.{ExecutionContext, Future}
 
 /** Operations under the Account tag.
   *
-  * Note: cdr, recurringCharges, payments, registration, and Client.login share
-  * a 6 req/hour/IP rate limit. Bursting will trigger 429s.
+  * Note: get, cdr, recurringCharges, and Client.login (POST
+  * /v2.2/account/api-key) share a 6 req/hour/IP rate limit. Bursting will
+  * trigger 429s.
   */
 final class AccountService(transport: Transport):
 
-  /** Return the authenticated account's profile. */
+  /** Return the authenticated account's profile. Rate-limited (6/hr/IP). */
   def get()(using ExecutionContext): Future[AccountData] =
     transport.request(Method.GET, "/v2.2/account").flatMap { payload =>
       Future.fromTry(Transport.decodeRequired[AccountData](payload))
@@ -31,11 +32,13 @@ final class AccountService(transport: Transport):
       Future.fromTry(Transport.decodeRequired[AccountAddData](p))
     }
 
-  /** Public sign-up flow. */
+  /** Public sign-up flow. No auth required. */
   def signup(body: AccountSignupRequest)(using ExecutionContext): Future[AccountSignupData] =
-    transport.request(Method.POST, "/v2.2/accounts", body = Some(body.asJson)).flatMap { p =>
-      Future.fromTry(Transport.decodeRequired[AccountSignupData](p))
-    }
+    transport
+      .request(Method.POST, "/v2.2/accounts", body = Some(body.asJson), requireAuth = false)
+      .flatMap { p =>
+        Future.fromTry(Transport.decodeRequired[AccountSignupData](p))
+      }
 
   /** Fetch call detail records. Rate-limited (6/hr/IP). */
   def cdr(start: Option[Int] = None, end: Option[Int] = None)(using
@@ -49,25 +52,30 @@ final class AccountService(transport: Transport):
       Future.fromTry(Transport.decodeRequired[AccountCdrData](p))
     }
 
-  /** Return credit history, newest first. */
-  def credits()(using ExecutionContext): Future[AccountCreditsData] =
-    transport.request(Method.GET, "/v2.2/account/credits").flatMap { p =>
+  /** Return credit history, newest first. status optionally filters to
+    * "paid" or "unpaid" entries.
+    */
+  def credits(status: Option[String] = None)(using
+      ExecutionContext
+  ): Future[AccountCreditsData] =
+    val q = status.map(s => "status" -> s).toSeq
+    transport.request(Method.GET, "/v2.2/account/credits", query = q).flatMap { p =>
       Future.fromTry(Transport.decodeRequired[AccountCreditsData](p))
     }
 
-  /** Return active monthly-recurring charges. Rate-limited. */
+  /** Return active monthly-recurring charges. Rate-limited (6/hr/IP). */
   def recurringCharges()(using ExecutionContext): Future[AccountMrcData] =
     transport.request(Method.GET, "/v2.2/account/recurring-charges").flatMap { p =>
       Future.fromTry(Transport.decodeRequired[AccountMrcData](p))
     }
 
-  /** Return payment history, newest first. Rate-limited. */
+  /** Return payment history, newest first. */
   def payments()(using ExecutionContext): Future[AccountPaymentsData] =
     transport.request(Method.GET, "/v2.2/account/payments").flatMap { p =>
       Future.fromTry(Transport.decodeRequired[AccountPaymentsData](p))
     }
 
-  /** Current SIP registration. Rate-limited. */
+  /** Current SIP registration. */
   def registration()(using ExecutionContext): Future[AccountRegistrationData] =
     transport.request(Method.GET, "/v2.2/account/registration").flatMap { p =>
       Future.fromTry(Transport.decodeRequired[AccountRegistrationData](p))

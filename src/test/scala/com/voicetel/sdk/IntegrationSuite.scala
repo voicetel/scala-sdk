@@ -12,8 +12,8 @@ import scala.concurrent.{Await, ExecutionContext, Future}
   *
   * Strict rules:
   *   - No state mutations. No POST/PUT/PATCH/DELETE.
-  *   - Login + cdr + recurring-charges + payments + registration all share a
-  *     6/hr/IP rate limit. Run sparingly.
+  *   - Login + account.get + cdr + recurring-charges share a 6/hr/IP rate
+  *     limit. Run sparingly.
   */
 class IntegrationSuite extends munit.FunSuite:
 
@@ -26,7 +26,7 @@ class IntegrationSuite extends munit.FunSuite:
   override def munitTimeout: Duration = 30.seconds
 
   private def buildClient(): VoiceTelClient =
-    val user = sys.env("VOICETEL_USERNAME").toInt
+    val user = sys.env("VOICETEL_USERNAME")
     val pass = sys.env("VOICETEL_PASSWORD")
     val base = sys.env.getOrElse("VOICETEL_BASE_URL", Version.DefaultBaseURL)
     val c    = VoiceTelClient(VoiceTelClientConfig(baseURL = base))
@@ -52,10 +52,10 @@ class IntegrationSuite extends munit.FunSuite:
         "acl.list"               -> c.acl.list(),
         "e911.list"              -> c.e911.list(),
         "support.list"           -> c.support.list(),
-        "iNumbering.coverage"    -> c.iNumbering.coverage(CoverageQuery()),
+        "iNumbering.coverage"    -> c.iNumbering.coverage(CoverageQuery(countBy = "state")),
         "iNumbering.ports"       -> c.iNumbering.ports(),
         "authentication.get"     -> c.authentication.get(),
-        "messaging.campaignStatus" -> c.messaging.campaignStatus()
+        "messaging.campaignStatus" -> c.messaging.campaignStatus(List("C000000"))
       )
       tasks.foreach { case (label, f) =>
         try Await.result(f, 15.seconds)

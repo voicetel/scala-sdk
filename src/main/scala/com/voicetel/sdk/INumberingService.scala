@@ -9,30 +9,34 @@ import scala.concurrent.{ExecutionContext, Future}
 /** Inventory searches, orders, and port-ins. */
 final class INumberingService(transport: Transport):
 
-  /** Search available TNs by NPA/NXX/state/rate-center/etc. */
+  /** Search available TNs by tnMask prefix/wildcard plus optional filters. */
   def searchInventory(q: InventoryQuery)(using
       ExecutionContext
   ): Future[InventorySearchData] =
     val params = Seq(
-      q.npa.map(v => "npa" -> v.toString),
-      q.nxx.map(v => "nxx" -> v.toString),
-      q.state.map(v => "state" -> v),
-      q.rateCenter.map(v => "ratecenter" -> v),
-      q.contains.map(v => "contains" -> v),
-      q.endsWith.map(v => "endswith" -> v),
-      q.limit.map(v => "limit" -> v.toString)
+      Some("tnMask" -> q.tnMask),
+      q.quantity.map(v => "quantity" -> v.toString),
+      q.province.map(v => "province" -> v),
+      q.rateCenter.map(v => "rateCenter" -> v),
+      q.lata.map(v => "lata" -> v.toString)
     ).flatten
     transport.request(Method.GET, "/v2.2/inventory", query = params).flatMap { p =>
       Future.fromTry(Transport.decodeRequired[InventorySearchData](p))
     }
 
-  /** Aggregated availability buckets. */
-  def coverage(q: CoverageQuery = CoverageQuery())(using
+  /** Aggregated availability buckets, grouped by q.countBy
+    * (state | city | rateCenter | npanxx | block).
+    */
+  def coverage(q: CoverageQuery)(using
       ExecutionContext
   ): Future[InventoryCoverageData] =
     val params = Seq(
-      q.state.map(v => "state" -> v),
-      q.rateCenter.map(v => "ratecenter" -> v)
+      Some("countBy" -> q.countBy),
+      q.locState.map(v => "locState" -> v),
+      q.city.map(v => "city" -> v),
+      q.rcAbbre.map(v => "rcAbbre" -> v),
+      q.npa.map(v => "npa" -> v),
+      q.lata.map(v => "lata" -> v.toString)
     ).flatten
     transport.request(Method.GET, "/v2.2/inventory/coverage", query = params).flatMap { p =>
       Future.fromTry(Transport.decodeRequired[InventoryCoverageData](p))
@@ -50,9 +54,9 @@ final class INumberingService(transport: Transport):
       Future.fromTry(Transport.decodeRequired[PortListData](p))
     }
 
-  /** Fetch detail for one port-in by id. */
-  def port(id: Int)(using ExecutionContext): Future[PortDetailData] =
-    transport.request(Method.GET, s"/v2.2/ports/$id").flatMap { p =>
+  /** Fetch detail for one port-in by its 5-character alphanumeric pid. */
+  def port(id: String)(using ExecutionContext): Future[PortDetailData] =
+    transport.request(Method.GET, s"/v2.2/ports/${Transport.encodePathSegment(id)}").flatMap { p =>
       Future.fromTry(Transport.decodeRequired[PortDetailData](p))
     }
 
@@ -64,6 +68,8 @@ final class INumberingService(transport: Transport):
 
   /** Check whether a given TN can be ported in. */
   def portAvailability(number: String)(using ExecutionContext): Future[PortAvailabilityData] =
-    transport.request(Method.GET, s"/v2.2/ports/availability/$number").flatMap { p =>
-      Future.fromTry(Transport.decodeRequired[PortAvailabilityData](p))
-    }
+    transport
+      .request(Method.GET, s"/v2.2/ports/availability/${Transport.encodePathSegment(number)}")
+      .flatMap { p =>
+        Future.fromTry(Transport.decodeRequired[PortAvailabilityData](p))
+      }

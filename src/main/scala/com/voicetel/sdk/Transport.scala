@@ -138,24 +138,38 @@ final class Transport(
     else
       new String(bytes, StandardCharsets.UTF_8)
 
-  private def decodeSuccess(@annotation.unused status: Int, raw: String): scala.util.Try[Option[Json]] =
+  private def decodeSuccess(status: Int, raw: String): scala.util.Try[Option[Json]] =
     if raw == null || raw.isEmpty then scala.util.Success(None)
     else
       parse(raw) match
-        case Left(_) =>
-          // Non-JSON 2xx body — treat as no payload.
-          scala.util.Success(None)
+        case Left(err) =>
+          scala.util.Failure(
+            ApiError(
+              ErrorKind.Unknown,
+              status,
+              None,
+              Some(raw),
+              s"non-JSON response body (HTTP $status): ${err.getMessage}"
+            )
+          )
         case Right(json) =>
           scala.util.Success(Some(Transport.unwrapEnvelope(json)))
 
   private def decodeError(status: Int, raw: String): ApiError =
     val (code, message, bodyStr) = parse(raw) match
       case Right(json) =>
-        val obj = json.asObject
-        val c = obj.flatMap(_.apply("code")).flatMap(_.asString).orElse(
+        val obj    = json.asObject
+        val nested = obj.flatMap(_.apply("error")).flatMap(_.asObject)
+        def asCode(j: Json): Option[String] =
+          j.asString.orElse(j.asNumber.flatMap(_.toInt).map(_.toString))
+        val c = nested.flatMap(_.apply("code")).flatMap(asCode).orElse(
+          obj.flatMap(_.apply("code")).flatMap(asCode)
+        ).orElse(
           obj.flatMap(_.apply("error")).flatMap(_.asString)
         )
-        val m = obj.flatMap(_.apply("message")).flatMap(_.asString).orElse(
+        val m = nested.flatMap(_.apply("message")).flatMap(_.asString).orElse(
+          obj.flatMap(_.apply("message")).flatMap(_.asString)
+        ).orElse(
           obj.flatMap(_.apply("error")).flatMap(_.asString)
         )
         (c, m.getOrElse(s"HTTP $status"), Some(jsonPrinter.print(json)))
@@ -165,7 +179,9 @@ final class Transport(
 
   private def backoffDelay(attempt: Int, retryAfter: Option[String]): FiniteDuration =
     retryAfter.flatMap(h => scala.util.Try(h.trim.toInt).toOption) match
-      case Some(secs) if secs >= 0 => secs.seconds
+      case Some(secs) if secs >= 0 =>
+        val d = secs.seconds
+        if d > 8.seconds then 8.seconds else d
       case _ =>
         val base = 500.millis
         val d    = base * (1L << attempt)
@@ -187,6 +203,12 @@ final class Transport(
       p.future
 
 object Transport:
+  /** Percent-encode a single URL path segment. Uses form encoding with the
+    * "+" (space) correction so the result is safe to embed in a path.
+    */
+  def encodePathSegment(s: String): String =
+    java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+
   /** Strip the `{"status":"success","data":...}` envelope when present. */
   def unwrapEnvelope(json: Json): Json =
     json.asObject match

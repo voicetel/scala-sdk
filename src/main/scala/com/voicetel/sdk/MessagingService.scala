@@ -10,14 +10,16 @@ import scala.concurrent.{ExecutionContext, Future}
 /** SMS/MMS sending and 10DLC brand/campaign registration. */
 final class MessagingService(transport: Transport):
 
-  /** Fetch message history. */
-  def history(opts: HistoryOptions = HistoryOptions())(using
+  /** Fetch message history. opts.number is required; from/to bound the
+    * (inclusive) Unix-timestamp range; `type` is sms (default), mms, or dlr.
+    */
+  def history(opts: HistoryOptions)(using
       ExecutionContext
   ): Future[MessageHistoryData] =
     val q = Seq(
-      opts.number.map("number" -> _),
-      opts.start.map(v => "start" -> v.toString),
-      opts.end.map(v => "end" -> v.toString),
+      Some("number" -> opts.number),
+      opts.from.map(v => "from" -> v.toString),
+      opts.to.map(v => "to" -> v.toString),
       opts.`type`.map("type" -> _)
     ).flatten
     transport.request(Method.GET, "/v2.2/messages", query = q).flatMap { p =>
@@ -38,11 +40,17 @@ final class MessagingService(transport: Transport):
       p => Future.fromTry(Transport.decodeRequired[MessagingBrandCreateData](p))
     }
 
-  /** Return current 10DLC campaign statuses. */
-  def campaignStatus()(using ExecutionContext): Future[MessagingCampaignStatusData] =
-    transport.request(Method.GET, "/v2.2/messaging/campaigns").flatMap { p =>
-      Future.fromTry(Transport.decodeRequired[MessagingCampaignStatusData](p))
-    }
+  /** Return current 10DLC campaign statuses. ids (required) are the campaign
+    * ids to query — max 100, sent comma-separated.
+    */
+  def campaignStatus(ids: List[String])(using
+      ExecutionContext
+  ): Future[MessagingCampaignStatusData] =
+    transport
+      .request(Method.GET, "/v2.2/messaging/campaigns", query = Seq("ids" -> ids.mkString(",")))
+      .flatMap { p =>
+        Future.fromTry(Transport.decodeRequired[MessagingCampaignStatusData](p))
+      }
 
   /** Register a 10DLC campaign with the carrier. */
   def createCampaign(body: MessagingCampaignCreateRequest)(using
@@ -52,11 +60,14 @@ final class MessagingService(transport: Transport):
       p => Future.fromTry(Transport.decodeRequired[MessagingCampaignCreateData](p))
     }
 
-  /** Messaging state for many numbers at once. Empty list = all numbers. */
-  def numbersState(numbers: List[String] = Nil)(using
+  /** Messaging state for the given numbers. numbers (required) is a list of
+    * 10-digit TNs — max 1000, sent comma-separated. Numbers not on the
+    * authenticated account are returned with onAccount=false.
+    */
+  def numbersState(numbers: List[String])(using
       ExecutionContext
   ): Future[NumbersMessagingListData] =
-    val q = if numbers.isEmpty then Nil else Seq("numbers" -> numbers.mkString(","))
+    val q = Seq("numbers" -> numbers.mkString(","))
     transport.request(Method.GET, "/v2.2/numbers/messaging", query = q).flatMap { p =>
       Future.fromTry(Transport.decodeRequired[NumbersMessagingListData](p))
     }
