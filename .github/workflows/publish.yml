@@ -1,0 +1,42 @@
+name: Publish to Maven Central
+
+# Publishes com.voicetel:voicetel-sdk_3 to Maven Central on every v* tag push,
+# using sbt 2's built-in Central Portal support (no sbt-sonatype):
+#   sbt publishSigned sonaUpload sonaRelease
+#
+# Required repo secrets (same values as java-sdk):
+#   CENTRAL_USERNAME        — Central Portal user token name
+#   CENTRAL_PASSWORD        — Central Portal user token secret
+#   MAVEN_GPG_PRIVATE_KEY   — ASCII-armored GPG private key
+#   MAVEN_GPG_PASSPHRASE    — passphrase for the key
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to Maven Central
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK + GPG (key imported into gpg-agent)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Publish to Central Portal
+        run: sbt publishSigned sonaUpload sonaRelease
+        env:
+          SONATYPE_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

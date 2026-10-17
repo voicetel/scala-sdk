@@ -51,5 +51,7 @@ lazy val root = (project in file("."))
     testFrameworks += new TestFramework("munit.Framework"),
     Test / parallelExecution := false,
     publishMavenStyle := true,
+    useGpgPinentry := true,
+    useGpgAgent := true,
     pomIncludeRepository := { _ => false }
   )
