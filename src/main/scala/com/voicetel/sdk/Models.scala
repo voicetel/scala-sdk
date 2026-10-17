@@ -484,6 +484,10 @@ object Models:
 
   // ---------------------------------------------------------------- iNumbering ---
 
+  /** @param route Global route type for numbers in this order: 1 USER, 2 T30,
+    *              3 VOICE_BRIDGE, 4 DID (default), 5 T38, 6 VOICEML, 8 SDN,
+    *              9 MOBILE.
+    */
   final case class OrderNumberSpec(number: String, route: Option[Int] = None)
   object OrderNumberSpec:
     given Codec[OrderNumberSpec] = deriveCodec
@@ -882,10 +886,16 @@ object Models:
 
   // ---------------------------------------------------------------- numbers ---
 
+  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+    *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
+    */
   final case class NumberAddRequest(number: String, route: Option[Int] = None)
   object NumberAddRequest:
     given Codec[NumberAddRequest] = deriveCodec
 
+  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+    *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
+    */
   final case class NumberRouteRequest(route: Int)
   object NumberRouteRequest:
     given Codec[NumberRouteRequest] = deriveCodec
@@ -931,6 +941,9 @@ object Models:
   object NumberCampaignAssignRequest:
     given Codec[NumberCampaignAssignRequest] = deriveCodec
 
+  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+    *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
+    */
   final case class NumberMoveRequest(accountId: Int, route: Int)
   object NumberMoveRequest:
     given Codec[NumberMoveRequest] = deriveCodec
@@ -939,6 +952,9 @@ object Models:
   object PortOutPinUpdateRequest:
     given Codec[PortOutPinUpdateRequest] = deriveCodec
 
+  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+    *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
+    */
   final case class NumberDetail(
       number: Option[String] = None,
       translated: Option[String] = None,
@@ -1000,6 +1016,9 @@ object Models:
   object NumberMessagingState:
     given Codec[NumberMessagingState] = deriveCodec
 
+  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+    *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
+    */
   final case class NumberAddData(number: Option[String] = None, route: Option[Int] = None)
   object NumberAddData:
     given Codec[NumberAddData] = deriveCodec
@@ -1035,6 +1054,10 @@ object Models:
   object NumberMessagingPatchData:
     given Codec[NumberMessagingPatchData] = deriveCodec
 
+  /** @param route Global route type on the destination account after the move:
+    *              1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID (default), 5 T38,
+    *              6 VOICEML, 8 SDN, 9 MOBILE.
+    */
   final case class NumberMoveData(
       number: Option[String] = None,
       accountId: Option[Int] = None,
@@ -1043,6 +1066,9 @@ object Models:
   object NumberMoveData:
     given Codec[NumberMoveData] = deriveCodec
 
+  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+    *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
+    */
   final case class NumberRouteData(number: Option[String] = None, route: Option[Int] = None)
   object NumberRouteData:
     given Codec[NumberRouteData] = deriveCodec

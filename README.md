@@ -2,7 +2,7 @@
 
 The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed, idiomatic Scala 3.
 
-![Version](https://img.shields.io/badge/version-2.2.16-blue)
+![Version](https://img.shields.io/badge/version-2.2.17-blue)
 ![Scala](https://img.shields.io/badge/scala-3.9-DC322F)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)
@@ -56,7 +56,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 
 ### 📦 Clean Distribution
 - Zero codegen footprint — every byte hand-written.
-- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.16`); pull with sbt or Maven.
+- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.17`); pull with sbt or Maven.
 - Dependencies kept minimal: sttp client3 (core + circe), circe.
 
 ## 🚀 Installation
@@ -64,7 +64,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 ### sbt
 
 ```scala
-libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.16"
+libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.17"
 ```
 
 ### Maven
@@ -73,7 +73,7 @@ libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.16"
 <dependency>
   <groupId>com.voicetel</groupId>
   <artifactId>voicetel-sdk_3</artifactId>
-  <version>2.2.16</version>
+  <version>2.2.17</version>
 </dependency>
 ```
 

@@ -611,7 +611,7 @@ class ResourcesSuite extends munit.FunSuite:
   }
 
   test("Numbers route/translation/cnam/lidb setters") {
-    val rRoute = """{"status":"success","data":{"number":"2015550123","route":7}}"""
+    val rRoute = """{"status":"success","data":{"number":"2015550123","route":4}}"""
     val rTr    = """{"status":"success","data":{"number":"2015550123","translation":"2015551235"}}"""
     val rCnam  = """{"status":"success","data":{"number":"2015550123","cnam":true}}"""
     val rLidb  =
@@ -624,7 +624,7 @@ class ResourcesSuite extends munit.FunSuite:
       .whenRequestMatches(_.uri.path.lastOption.contains("cnam")).thenRespond(rCnam)
       .whenRequestMatches(_.uri.path.lastOption.contains("lidb")).thenRespond(rLidb)
     val c = clientFor(backend)
-    assertEquals(await(c.numbers.setRoute("2015550123", NumberRouteRequest(7))).route, Some(7))
+    assertEquals(await(c.numbers.setRoute("2015550123", NumberRouteRequest(4))).route, Some(4))
     assertEquals(
       await(c.numbers.setTranslation("2015550123", NumberTranslationRequest("2015551235"))).translation,
       Some("2015551235")
