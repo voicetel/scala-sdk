@@ -2,7 +2,7 @@ ThisBuild / organization := "com.voicetel"
 ThisBuild / organizationName := "VoiceTel Communications"
 ThisBuild / organizationHomepage := Some(url("https://voicetel.com"))
 ThisBuild / version := "2.2.17"
-ThisBuild / scalaVersion := "3.9.0"
+ThisBuild / scalaVersion := "3.10.0"
 
 ThisBuild / homepage := Some(url("https://github.com/voicetel/scala-sdk"))
 ThisBuild / licenses := List("MIT" -> url("https://opensource.org/licenses/MIT"))
