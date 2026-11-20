@@ -444,6 +444,89 @@ object Models:
   object E911ValidateData:
     given Codec[E911ValidateData] = deriveCodec
 
+  // ----------------------------------------------------------------- Fax ---
+
+  /** One fax-capable number on the account. */
+  final case class FaxNumberEntry(
+      number: String,
+      destinationId: Int,
+      email: String
+  )
+  object FaxNumberEntry:
+    given Codec[FaxNumberEntry] = deriveCodec
+
+  /** Data payload from GET /v2.2/numbers/fax. destinationId 0 means the
+    * number delivers faxes to the account email.
+    */
+  final case class FaxNumbersData(numbers: List[FaxNumberEntry] = Nil)
+  object FaxNumbersData:
+    given Codec[FaxNumbersData] = deriveCodec
+
+  /** Metadata of one document attached to a fax. */
+  final case class FaxDocumentMeta(name: String, size: Int, contentType: String)
+  object FaxDocumentMeta:
+    given Codec[FaxDocumentMeta] = deriveCodec
+
+  /** Data payload from POST /v2.2/faxes — the accepted, queued job. */
+  final case class FaxSendData(
+      id: String,
+      fromNumber: String,
+      toNumber: String,
+      status: String,
+      documents: List[FaxDocumentMeta] = Nil
+  )
+  object FaxSendData:
+    given Codec[FaxSendData] = deriveCodec
+
+  /** One fax job: routing, lifecycle timestamps and documents.
+    *
+    * status is queued, sending, retry_pending, sent or failed; timestamps are
+    * ISO-8601 UTC strings; clientToken is the Idempotency-Key the fax was
+    * submitted with.
+    */
+  final case class FaxJob(
+      id: String,
+      fromNumber: String,
+      toNumber: String,
+      status: String,
+      clientToken: Option[String] = None,
+      submittedAt: Option[String] = None,
+      startedAt: Option[String] = None,
+      completedAt: Option[String] = None,
+      attempts: Option[Int] = None,
+      failureReason: Option[String] = None,
+      documents: List[FaxDocumentMeta] = Nil,
+      documentAvailable: Boolean = false,
+      documentName: String = "",
+      documentSize: Option[Int] = None
+  )
+  object FaxJob:
+    given Codec[FaxJob] = deriveCodec
+
+  /** Data payload from GET /v2.2/faxes — one page of history, newest first. */
+  final case class FaxHistoryData(
+      number: String,
+      fromTs: Option[Long] = None,
+      toTs: Option[Long] = None,
+      faxes: List[FaxJob] = Nil,
+      nextCursor: Option[String] = None
+  )
+  object FaxHistoryData:
+    given Codec[FaxHistoryData] = deriveCodec
+
+  /** Query for FaxService.history. number is required; from/to are unix
+    * seconds (from is the newer edge, defaulting to the last 24 hours);
+    * status is one of all|active|queued|sending|retry_pending|sent|failed.
+    */
+  final case class FaxHistoryOptions(
+      number: String,
+      from: Option[Long] = None,
+      to: Option[Long] = None,
+      limit: Option[Int] = None,
+      cursor: Option[String] = None,
+      status: Option[String] = None
+  )
+
   // ---------------------------------------------------------------- gateways ---
 
   final case class GatewayAddRequest(

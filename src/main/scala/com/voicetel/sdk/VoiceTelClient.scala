@@ -35,6 +35,7 @@ final class VoiceTelClient private (
   val acl: AclService                       = AclService(transport)
   val authentication: AuthenticationService = AuthenticationService(transport)
   val e911: E911Service                     = E911Service(transport)
+  val fax: FaxService                       = FaxService(transport)
   val gateways: GatewaysService             = GatewaysService(transport)
   val iNumbering: INumberingService         = INumberingService(transport)
   val lookups: LookupsService               = LookupsService(transport)

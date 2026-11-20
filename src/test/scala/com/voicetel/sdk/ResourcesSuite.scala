@@ -129,15 +129,30 @@ class ResourcesSuite extends munit.FunSuite:
     assertEquals(r.added.size, 1)
   }
 
-  test("ACL.remove sends cidrs query param, no body (200 with body)") {
+  test("ACL.remove sends the {acl:[...]} body with an empty query string") {
     val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
     val raw  = """{"status":"success","data":{"removed":[{"cidr":"203.0.113.0/24"}]}}"""
     val c    = clientFor(recordingStub(reqs, raw))
-    val r    = await(c.acl.remove(List("203.0.113.0/24", "203.0.113.1/32")))
+    val r    = await(c.acl.remove(AclModifyRequest(List(CidrEntry("203.0.113.0/24"), CidrEntry("203.0.113.1/32")))))
     assertEquals(r.removed.size, 1)
     assertEquals(reqs.head.method, sttp.model.Method.DELETE)
-    assertEquals(reqs.head.uri.paramsMap.get("cidrs"), Some("203.0.113.0/24,203.0.113.1/32"))
-    assertEquals(reqs.head.body, sttp.client3.NoBody)
+    // the live handler reads the body, not the old cidrs query parameter
+    assertEquals(reqs.head.uri.paramsMap.isEmpty, true)
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"acl\":[{\"cidr\":\"203.0.113.0/24\"},{\"cidr\":\"203.0.113.1/32\"}]"), sent)
+  }
+
+  test("ACL.remove 409 keeps the error envelope plus data payload in ApiError.body") {
+    val raw =
+      """{"status":"error","error":{"code":409,"message":"One or more ACL entries could not be removed"},""" +
+        """"data":{"removed":[{"cidr":"203.0.113.0/24"}],"failed":[{"cidr":"203.0.113.9/32","reason":"DB delete failed"}]}}"""
+    val c = clientFor(stubStatus(409, raw))
+    val t = intercept[ApiError](await(c.acl.remove(AclModifyRequest(List(CidrEntry("203.0.113.0/24"))))))
+    assertEquals(t.kind, ErrorKind.Conflict)
+    assertEquals(t.getMessage, "One or more ACL entries could not be removed")
+    assert(t.body.exists(_.contains("\"DB delete failed\"")))
   }
 
   // -------------------------------------------------------- Authentication ---
@@ -222,6 +237,154 @@ class ResourcesSuite extends munit.FunSuite:
       .thenRespond(Response("", StatusCode(204)))
     val c = clientFor(backend)
     await(c.e911.remove("2015550123"))
+  }
+
+  // ----------------------------------------------------------------- fax ---
+
+  test("Fax.numbers decodes") {
+    val raw =
+      """{"status":"success","data":{"numbers":[{"number":"2015550123","destinationId":7,"email":"fax@example.com"}]}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.fax.numbers())
+    assertEquals(r.numbers.head.number, "2015550123")
+    assertEquals(r.numbers.head.destinationId, 7)
+    assertEquals(r.numbers.head.email, "fax@example.com")
+  }
+
+  test("Fax.send posts a multipart form with a UUID Idempotency-Key (201)") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw  =
+      """{"status":"success","data":{"id":"9f8c2b41a","fromNumber":"2015550123","toNumber":"2125550123",""" +
+        """"status":"queued","documents":[{"name":"contract.pdf","size":123456,"contentType":"application/pdf"}]}}"""
+    val c = clientFor(
+      recordingStub(reqs, raw, status = 201)
+    )
+    val r = await(
+      c.fax.send(
+        fromNumber = "2015550123",
+        toNumber = "2125550123",
+        documents = List(FaxDocument.pdf("contract.pdf", "%PDF-1.4 fake".getBytes))
+      )
+    )
+    assertEquals(r.id, "9f8c2b41a")
+    assertEquals(r.status, "queued")
+    assertEquals(r.documents.head.size, 123456)
+
+    val sent = reqs.head
+    assertEquals(sent.method, sttp.model.Method.POST)
+    assertEquals(sent.uri.path.toList, List("v2.2", "faxes"))
+    // Idempotency-Key is required on the wire and is a UUID
+    val key = sent.header("Idempotency-Key").getOrElse("")
+    assert(
+      key.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
+      s"Idempotency-Key not a UUID: $key"
+    )
+    // multipart with a boundary
+    val contentType = sent.header("Content-Type").getOrElse("")
+    assert(contentType.startsWith("multipart/form-data; boundary="), contentType)
+    val boundary = contentType.stripPrefix("multipart/form-data; boundary=")
+    val body = sent.body match
+      case sttp.client3.ByteArrayBody(b, _) => new String(b, java.nio.charset.StandardCharsets.US_ASCII)
+      case other                            => fail(s"expected ByteArrayBody, got $other")
+    assert(body.contains(s"--$boundary\r\n"), body)
+    assert(body.contains("""Content-Disposition: form-data; name="fromNumber""""), body)
+    assert(body.contains("2015550123"), body)
+    assert(body.contains("""Content-Disposition: form-data; name="toNumber""""), body)
+    assert(body.contains("2125550123"), body)
+    assert(body.contains("""Content-Disposition: form-data; name="documents"; filename="contract.pdf""""), body)
+    assert(body.contains("Content-Type: application/pdf"), body)
+    assert(body.contains("%PDF-1.4 fake"), body)
+    assert(body.endsWith(s"--$boundary--\r\n"), body)
+  }
+
+  test("Fax.send honors a caller-supplied idempotency key") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw  =
+      """{"status":"success","data":{"id":"x","fromNumber":"2015550123","toNumber":"2125550123","status":"queued","documents":[]}}"""
+    val c = clientFor(recordingStub(reqs, raw, status = 201))
+    await(
+      c.fax.send("2015550123", "2125550123", List(FaxDocument("a.pdf", "%PDF-".getBytes)), idempotencyKey =
+        Some("123e4567-e89b-12d3-a456-426614174000")
+      )
+    )
+    assertEquals(reqs.head.header("Idempotency-Key"), Some("123e4567-e89b-12d3-a456-426614174000"))
+  }
+
+  test("Fax.history sends the spec's exact query params and decodes a page") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw  =
+      """{"status":"success","data":{"number":"2015550123","fromTs":1795100000,"toTs":1795013600,""" +
+        """"faxes":[{"id":"9f8c2b41a","fromNumber":"2015550123","toNumber":"2125550123",""" +
+        """"clientToken":"123e4567-e89b-12d3-a456-426614174000","status":"sent",""" +
+        """"submittedAt":"2026-11-20T15:04:05Z","startedAt":"2026-11-20T15:04:41Z","completedAt":"2026-11-20T15:05:19Z",""" +
+        """"attempts":1,"failureReason":null,"documents":[{"name":"contract.pdf","size":123456,"contentType":"application/pdf"}],""" +
+        """"documentAvailable":true,"documentName":"contract.pdf","documentSize":123456}],"nextCursor":null}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(
+      c.fax.history(
+        FaxHistoryOptions(
+          number = "2015550123",
+          from = Some(1795100000L),
+          to = Some(1795013600L),
+          limit = Some(50),
+          status = Some("all")
+        )
+      )
+    )
+    assertEquals(r.number, "2015550123")
+    assertEquals(r.faxes.head.status, "sent")
+    assertEquals(r.faxes.head.attempts, Some(1))
+    assertEquals(r.faxes.head.documents.head.size, 123456)
+    assertEquals(r.faxes.head.documentAvailable, true)
+    assertEquals(r.nextCursor, None)
+    val params = reqs.head.uri.paramsMap
+    assertEquals(params.get("number"), Some("2015550123"))
+    assertEquals(params.get("from"), Some("1795100000"))
+    assertEquals(params.get("to"), Some("1795013600"))
+    assertEquals(params.get("limit"), Some("50"))
+    assertEquals(params.get("status"), Some("all"))
+  }
+
+  test("Fax.history passes the paging cursor through") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw  =
+      """{"status":"success","data":{"number":"2015550123","fromTs":1795100000,"toTs":1795013600,"faxes":[],"nextCursor":"next"}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    await(c.fax.history(FaxHistoryOptions(number = "2015550123", cursor = Some("cGl0LnN0b3Jl.8b1c"))))
+    assertEquals(reqs.head.uri.paramsMap.get("cursor"), Some("cGl0LnN0b3Jl.8b1c"))
+  }
+
+  test("Fax.get decodes one job") {
+    val raw =
+      """{"status":"success","data":{"id":"9f8c2b41a","fromNumber":"2015550123","toNumber":"2125550123",""" +
+        """"clientToken":null,"status":"failed","submittedAt":"2026-11-20T15:04:05Z","startedAt":null,"completedAt":null,""" +
+        """"attempts":null,"failureReason":"no answer","documents":[],"documentAvailable":false,"documentName":"","documentSize":null}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.fax.get("9f8c2b41a"))
+    assertEquals(r.status, "failed")
+    assertEquals(r.failureReason, Some("no answer"))
+    assertEquals(r.clientToken, None)
+    assertEquals(r.documentAvailable, false)
+  }
+
+  test("Fax.document returns the raw PDF bytes without envelope parsing") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val c    = clientFor(recordingStub(reqs, "%PDF-1.4 binary-bytes"))
+    val data = await(c.fax.document("9f8c2b41a"))
+    assertEquals(
+      new String(data, java.nio.charset.StandardCharsets.US_ASCII),
+      "%PDF-1.4 binary-bytes"
+    )
+    assertEquals(reqs.head.uri.path.toList, List("v2.2", "faxes", "9f8c2b41a", "document"))
+  }
+
+  test("Fax errors tolerate the serverTime field beside the error envelope") {
+    val raw =
+      """{"status":"error","error":{"code":404,"message":"Not found"},"serverTime":1795100000}"""
+    val c = clientFor(stubStatus(404, raw))
+    val t = intercept[ApiError](await(c.fax.get("deadbeef")))
+    assertEquals(t.kind, ErrorKind.NotFound)
+    assertEquals(t.getMessage, "Not found")
   }
 
   // ---------------------------------------------------------------- gateways ---
@@ -1085,7 +1248,7 @@ class ResourcesSuite extends munit.FunSuite:
     // acl
     shouldFail(c.acl.list(), "acl.list")
     shouldFail(c.acl.add(acl), "acl.add")
-    shouldFail(c.acl.remove(List("203.0.113.0/24")), "acl.remove")
+    shouldFail(c.acl.remove(acl), "acl.remove")
     // auth
     shouldFail(c.authentication.get(), "auth.get")
     shouldFail(c.authentication.update(AuthPutRequest(authType = Some(1))), "auth.update")

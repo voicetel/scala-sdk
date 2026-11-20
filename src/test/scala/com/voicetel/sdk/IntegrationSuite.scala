@@ -51,6 +51,7 @@ class IntegrationSuite extends munit.FunSuite:
         "gateways.list"          -> c.gateways.list(),
         "acl.list"               -> c.acl.list(),
         "e911.list"              -> c.e911.list(),
+        "fax.numbers"            -> c.fax.numbers(),
         "support.list"           -> c.support.list(),
         "iNumbering.coverage"    -> c.iNumbering.coverage(CoverageQuery(countBy = "state")),
         "iNumbering.ports"       -> c.iNumbering.ports(),

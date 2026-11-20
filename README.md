@@ -2,7 +2,7 @@
 
 The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed, idiomatic Scala 3.
 
-![Version](https://img.shields.io/badge/version-2.2.20-blue)
+![Version](https://img.shields.io/badge/version-2.2.21-blue)
 ![Scala](https://img.shields.io/badge/scala-3.9-DC322F)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)
@@ -25,7 +25,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 ## ✨ Features
 
 ### 🛡️ Strongly Typed End-to-End
-- **Native Scala 3 case classes** for every one of the 83 API operations, JSON-encoded via Circe.
+- **Native Scala 3 case classes** for every one of the 88 API operations, JSON-encoded via Circe.
 - **`Option[T]` for nullable fields** — distinguish "not set" from default values cleanly.
 - **Sealed `enum` types** for error kinds and order-number variants — exhaustive pattern matching at compile time.
 - **`Future[T]` everywhere.** No effect-system lock-in; bring your own `ExecutionContext`.
@@ -41,6 +41,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 - **Numbers** — list, get, add, remove, route, translate, CNAM, LIDB, directory listing (411), fax, forward, SMS, messaging campaigns, port-out PIN, account moves.
 - **Account** — profile, sub-accounts, CDRs, credits, payments, MRC, registration, password recovery.
 - **e911** — record provisioning, address validation, lookup, removal.
+- **Fax** — send faxes from your fax-capable numbers (multipart upload, idempotent per Idempotency-Key), read history with cursor paging, and download the rendered PDF.
 - **Gateways** — list, create, update, delete, view bound numbers.
 - **Messaging** — SMS & MMS sending, message history, 10DLC brand and campaign registration, per-number messaging state, and messaging health (account overview, per-number live check, spam-blocked samples, alert-email setting).
 - **Lookups** — CNAM, carrier & line type, and LRN dips.
@@ -56,7 +57,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 
 ### 📦 Clean Distribution
 - Zero codegen footprint — every byte hand-written.
-- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.20`); pull with sbt or Maven.
+- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.21`); pull with sbt or Maven.
 - Dependencies kept minimal: sttp client3 (core + circe), circe.
 
 ## 🚀 Installation
@@ -64,7 +65,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 ### sbt
 
 ```scala
-libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.20"
+libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.21"
 ```
 
 ### Maven
@@ -73,7 +74,7 @@ libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.20"
 <dependency>
   <groupId>com.voicetel</groupId>
   <artifactId>voicetel-sdk_3</artifactId>
-  <version>2.2.20</version>
+  <version>2.2.21</version>
 </dependency>
 ```
 
@@ -139,6 +140,7 @@ val key    = Await.result(client.login("1000000001", "hunter2"), 30.seconds)
 | ACL | `client.acl` | `client.acl.add(AclModifyRequest(...))` |
 | Authentication | `client.authentication` | `client.authentication.update(AuthPutRequest(authType = Some(1)))` |
 | e911 | `client.e911` | `client.e911.validate(E911AddressRequest(...))` |
+| Fax | `client.fax` | `client.fax.send("2015550123", "2125550123", List(FaxDocument.pdf("contract.pdf", pdfBytes)))` |
 | Gateways | `client.gateways` | `client.gateways.list()` |
 | iNumbering | `client.iNumbering` | `client.iNumbering.searchInventory(InventoryQuery(tnMask = "201*"))` |
 | Lookups | `client.lookups` | `client.lookups.lrn("2015550123", "2015550100")` |
@@ -204,6 +206,9 @@ These endpoints are limited to **6 requests per hour per IP**:
 
 `POST /v2.2/messaging/health/check` (`client.messaging.healthCheck`) is limited
 to **30 checks per hour per account**.
+
+`POST /v2.2/faxes` (`client.fax.send`) is limited to **10 sends per minute per
+account** and answers 429 with `Retry-After: 60`.
 
 The SDK automatically retries 429 responses with `Retry-After` honored, up to `maxRetries` (default 2). To bump it:
 

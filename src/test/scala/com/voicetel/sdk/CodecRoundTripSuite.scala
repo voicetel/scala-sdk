@@ -92,6 +92,39 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(E911ValidateData(E911ValidatedAddress("123a45b678c9d012e3f45a67b890c123", "1", None, "C", "NJ", "07082")), "E911ValidateData")
   }
 
+  test("Fax models round-trip") {
+    roundTrip(FaxNumberEntry("2015550123", 7, "fax@example.com"), "FaxNumberEntry")
+    roundTrip(FaxNumbersData(List(FaxNumberEntry("2015550123", 7, "fax@example.com"))), "FaxNumbersData")
+    roundTrip(FaxDocumentMeta("contract.pdf", 123456, "application/pdf"), "FaxDocumentMeta")
+    roundTrip(
+      FaxSendData("9f8c2b41a", "2015550123", "2125550123", "queued", List(FaxDocumentMeta("contract.pdf", 123456, "application/pdf"))),
+      "FaxSendData"
+    )
+    roundTrip(
+      FaxJob(
+        id = "9f8c2b41a",
+        fromNumber = "2015550123",
+        toNumber = "2125550123",
+        status = "sent",
+        clientToken = Some("123e4567-e89b-12d3-a456-426614174000"),
+        submittedAt = Some("2026-11-20T15:04:05Z"),
+        startedAt = Some("2026-11-20T15:04:41Z"),
+        completedAt = Some("2026-11-20T15:05:19Z"),
+        attempts = Some(1),
+        failureReason = None,
+        documents = List(FaxDocumentMeta("contract.pdf", 123456, "application/pdf")),
+        documentAvailable = true,
+        documentName = "contract.pdf",
+        documentSize = Some(123456)
+      ),
+      "FaxJob"
+    )
+    roundTrip(
+      FaxHistoryData("2015550123", Some(1795100000L), Some(1795013600L), Nil, Some("cursor")),
+      "FaxHistoryData"
+    )
+  }
+
   test("Gateways models round-trip") {
     roundTrip(GatewayAddRequest("1.2.3.4", Some("9"), Some(20)), "GatewayAddRequest")
     roundTrip(GatewayUpdateRequest(Some("1.2.3.4"), Some("9"), Some(20)), "GatewayUpdateRequest")
@@ -413,8 +446,8 @@ class CodecRoundTripSuite extends munit.FunSuite:
   }
 
   test("Version constants present") {
-    assertEquals(Version.APIVersion, "v2.2.20")
-    assertEquals(Version.SDKVersion, "2.2.20")
+    assertEquals(Version.APIVersion, "v2.2.21")
+    assertEquals(Version.SDKVersion, "2.2.21")
     assert(Version.DefaultBaseURL.startsWith("https://"))
     assert(Version.DefaultUserAgent.contains("voicetel-scala"))
   }

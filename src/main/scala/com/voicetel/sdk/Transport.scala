@@ -12,6 +12,18 @@ import java.util.zip.GZIPInputStream
 import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
+/** A request body: JSON (the default) or already-encoded bytes with an
+  * explicit content type — a multipart form built by [[Transport.Multipart]].
+  */
+private[sdk] sealed trait RequestBody:
+  def contentType: String
+
+private[sdk] object RequestBody:
+  final case class JsonBody(json: Json) extends RequestBody:
+    val contentType: String = "application/json"
+
+  final case class RawBody(contentType: String, bytes: Array[Byte]) extends RequestBody
+
 /** Low-level HTTP transport used by every resource service.
   *
   * @param baseURL    base API URL with no trailing slash
@@ -54,6 +66,77 @@ final class Transport(
       body: Option[Json] = None,
       requireAuth: Boolean = true
   )(using ec: ExecutionContext): Future[Option[Json]] =
+    attemptRequest(
+      method,
+      path,
+      query,
+      body.map(RequestBody.JsonBody(_)),
+      idempotencyKey = None,
+      requireAuth,
+      decodeJsonSuccess
+    )
+
+  /** Perform an HTTP request whose body is already encoded — for example a
+    * multipart form built by [[Transport.Multipart]]. The response is decoded
+    * as a JSON envelope like [[request]].
+    *
+    * @param method         HTTP method
+    * @param path           path beginning with `/`
+    * @param contentType    full Content-Type header value, boundary included
+    * @param bytes          the encoded body bytes
+    * @param query          optional query params
+    * @param idempotencyKey when set, replaces the auto-generated
+    *                       Idempotency-Key and stays stable across retries
+    * @param requireAuth    when false, skip the Authorization header
+    * @param ec             ExecutionContext for Future composition
+    */
+  def requestWithRawBody(
+      method: Method,
+      path: String,
+      contentType: String,
+      bytes: Array[Byte],
+      query: Seq[(String, String)] = Nil,
+      idempotencyKey: Option[String] = None,
+      requireAuth: Boolean = true
+  )(using ec: ExecutionContext): Future[Option[Json]] =
+    attemptRequest(
+      method,
+      path,
+      query,
+      Some(RequestBody.RawBody(contentType, bytes)),
+      idempotencyKey,
+      requireAuth,
+      decodeJsonSuccess
+    )
+
+  /** Perform an HTTP request and return the raw response bytes — for binary
+    * endpoints such as `GET /v2.2/faxes/{id}/document`. The body is returned
+    * as-is (no envelope unwrapping); error responses still fail with an
+    * ApiError carrying the parsed error envelope.
+    *
+    * @param method      HTTP method
+    * @param path        path beginning with `/`
+    * @param query       optional query params
+    * @param requireAuth when false, skip the Authorization header
+    * @param ec          ExecutionContext for Future composition
+    */
+  def requestBytes(
+      method: Method,
+      path: String,
+      query: Seq[(String, String)] = Nil,
+      requireAuth: Boolean = true
+  )(using ec: ExecutionContext): Future[Array[Byte]] =
+    attemptRequest(method, path, query, None, None, requireAuth, decodeRawSuccess)
+
+  private def attemptRequest[A](
+      method: Method,
+      path: String,
+      query: Seq[(String, String)],
+      body: Option[RequestBody],
+      idempotencyKey: Option[String],
+      requireAuth: Boolean,
+      decodeSuccessBody: (Int, Array[Byte]) => scala.util.Try[A]
+  )(using ec: ExecutionContext): Future[A] =
     if requireAuth && apiKey.isEmpty then
       Future.failed(
         ApiError(
@@ -63,26 +146,27 @@ final class Transport(
         )
       )
     else
-      val parsed = Uri.parse(baseURL + path) match
-        case Right(u) => u
+      Uri.parse(baseURL + path) match
+        case Right(u) =>
+          doAttempt(method, u.addParams(query*), body, idempotencyKey, requireAuth, attempt = 0, decodeSuccessBody)
         case Left(err) =>
-          return Future.failed(
-            ApiError(ErrorKind.Unknown, 0, None, None, s"invalid URL: $err")
-          )
-      val uri = parsed.addParams(query*)
-      doAttempt(method, uri, body, requireAuth, attempt = 0)
+          Future.failed(ApiError(ErrorKind.Unknown, 0, None, None, s"invalid URL: $err"))
 
-  private def doAttempt(
+  private def doAttempt[A](
       method: Method,
       uri: Uri,
-      body: Option[Json],
+      body: Option[RequestBody],
+      idempotencyKeyOverride: Option[String],
       requireAuth: Boolean,
-      attempt: Int
-  )(using ec: ExecutionContext): Future[Option[Json]] =
+      attempt: Int,
+      decodeSuccessBody: (Int, Array[Byte]) => scala.util.Try[A]
+  )(using ec: ExecutionContext): Future[A] =
     val idempotencyKey =
-      if method == Method.POST || method == Method.PUT || method == Method.PATCH then
-        Some(java.util.UUID.randomUUID().toString)
-      else None
+      idempotencyKeyOverride.orElse(
+        if method == Method.POST || method == Method.PUT || method == Method.PATCH then
+          Some(java.util.UUID.randomUUID().toString)
+        else None
+      )
 
     var req = basicRequest
       .method(method, uri)
@@ -91,32 +175,33 @@ final class Transport(
       .header("Accept-Encoding", "gzip")
       .response(asByteArrayAlways)
 
-    body.foreach { j =>
-      req = req
-        .header("Content-Type", "application/json")
-        .body(jsonPrinter.print(j))
+    body.foreach { rb =>
+      req = req.header("Content-Type", rb.contentType)
+      rb match
+        case RequestBody.JsonBody(json) => req = req.body(jsonPrinter.print(json))
+        case RequestBody.RawBody(_, bytes) => req = req.body(bytes)
     }
     if requireAuth then
       req = req.header("Authorization", s"Bearer $apiKey")
     idempotencyKey.foreach(k => req = req.header("Idempotency-Key", k))
 
     req.send(backend).flatMap { resp =>
-      val raw = decompressBody(resp.body, resp.header("Content-Encoding"))
-      val status = resp.code.code
+      val rawBytes = decompressBytes(resp.body, resp.header("Content-Encoding"))
+      val status   = resp.code.code
       if status >= 200 && status < 300 then
-        Future.fromTry(decodeSuccess(status, raw))
+        Future.fromTry(decodeSuccessBody(status, rawBytes))
       else if retryableStatuses.contains(status) && attempt < maxRetries then
         val delay = backoffDelay(attempt, resp.header("Retry-After"))
         afterDelay(delay) {
-          doAttempt(method, uri, body, requireAuth, attempt + 1)
+          doAttempt(method, uri, body, idempotencyKeyOverride, requireAuth, attempt + 1, decodeSuccessBody)
         }
-      else Future.failed(decodeError(status, raw))
+      else Future.failed(decodeError(status, new String(rawBytes, StandardCharsets.UTF_8)))
     }.recoverWith {
       case e: ApiError => Future.failed(e)
       case _: Throwable if attempt < maxRetries =>
         val delay = backoffDelay(attempt, None)
         afterDelay(delay) {
-          doAttempt(method, uri, body, requireAuth, attempt + 1)
+          doAttempt(method, uri, body, idempotencyKeyOverride, requireAuth, attempt + 1, decodeSuccessBody)
         }
       case t: Throwable =>
         Future.failed(
@@ -131,16 +216,16 @@ final class Transport(
         )
     }
 
-  private def decompressBody(bytes: Array[Byte], encoding: Option[String]): String =
+  private def decompressBytes(bytes: Array[Byte], encoding: Option[String]): Array[Byte] =
     if encoding.exists(_.equalsIgnoreCase("gzip")) then
       val gis = new GZIPInputStream(new ByteArrayInputStream(bytes))
-      try new String(gis.readAllBytes(), StandardCharsets.UTF_8) finally gis.close()
-    else
-      new String(bytes, StandardCharsets.UTF_8)
+      try gis.readAllBytes() finally gis.close()
+    else bytes
 
-  private def decodeSuccess(status: Int, raw: String): scala.util.Try[Option[Json]] =
-    if raw == null || raw.isEmpty then scala.util.Success(None)
+  private def decodeJsonSuccess(status: Int, bytes: Array[Byte]): scala.util.Try[Option[Json]] =
+    if bytes.isEmpty then scala.util.Success(None)
     else
+      val raw = new String(bytes, StandardCharsets.UTF_8)
       parse(raw) match
         case Left(err) =>
           scala.util.Failure(
@@ -154,6 +239,9 @@ final class Transport(
           )
         case Right(json) =>
           scala.util.Success(Some(Transport.unwrapEnvelope(json)))
+
+  private val decodeRawSuccess: (Int, Array[Byte]) => scala.util.Try[Array[Byte]] =
+    (_, bytes) => scala.util.Success(bytes)
 
   private def decodeError(status: Int, raw: String): ApiError =
     val (code, message, bodyStr) = parse(raw) match
@@ -245,6 +333,75 @@ object Transport:
             "expected JSON response body, got empty"
           )
         )
+
+  /** Minimal RFC 7578 multipart/form-data encoder — the wire format for
+    * `POST /v2.2/faxes`. Bodies are assembled by hand around an explicit
+    * boundary; no third-party multipart machinery is pulled in.
+    */
+  private[sdk] object Multipart:
+
+    /** One file part: form-field name, file name, media type, raw bytes. */
+    final case class FilePart(
+        name: String,
+        filename: String,
+        contentType: String,
+        bytes: Array[Byte]
+    )
+
+    /** A fresh random boundary — ASCII letters, digits and dashes only, so it
+      * is safe both in the Content-Type header and in the body.
+      */
+    def randomBoundary(): String =
+      s"voicetel-${java.util.UUID.randomUUID().toString.replace("-", "")}"
+
+    /** Encode text fields followed by file parts, closing the boundary.
+      *
+      * @return the full Content-Type header value (boundary included) and the body bytes
+      */
+    def build(
+        fields: Seq[(String, String)],
+        files: Seq[FilePart],
+        boundary: String
+    ): (String, Array[Byte]) =
+      val out  = new java.io.ByteArrayOutputStream()
+      val crlf = "\r\n".getBytes(StandardCharsets.US_ASCII)
+      def ascii(s: String): Array[Byte] = s.getBytes(StandardCharsets.US_ASCII)
+      def delimiter(): Unit =
+        out.write("--".getBytes(StandardCharsets.US_ASCII))
+        out.write(ascii(boundary))
+        out.write(crlf)
+
+      fields.foreach { (name, value) =>
+        delimiter()
+        out.write(ascii(s"""Content-Disposition: form-data; name="$name""""))
+        out.write(crlf)
+        out.write(crlf)
+        out.write(value.getBytes(StandardCharsets.UTF_8))
+        out.write(crlf)
+      }
+      files.foreach { p =>
+        delimiter()
+        out.write(ascii(s"""Content-Disposition: form-data; name="${p.name}"; filename="${sanitize(p.filename)}""""))
+        out.write(crlf)
+        out.write(ascii(s"Content-Type: ${p.contentType}"))
+        out.write(crlf)
+        out.write(crlf)
+        out.write(p.bytes)
+        out.write(crlf)
+      }
+      out.write("--".getBytes(StandardCharsets.US_ASCII))
+      out.write(ascii(boundary))
+      out.write("--".getBytes(StandardCharsets.US_ASCII))
+      out.write(crlf)
+      (s"multipart/form-data; boundary=$boundary", out.toByteArray)
+
+    /** Keep the Content-Disposition line valid: strip quotes, backslashes and
+      * line breaks from file names.
+      */
+    private def sanitize(filename: String): String =
+      filename.replaceAll("[\"\\\\\r\n]", "_")
+
+  end Multipart
 
   private val scheduler: java.util.concurrent.ScheduledExecutorService =
     java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r =>

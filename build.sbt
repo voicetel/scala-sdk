@@ -1,7 +1,7 @@
 ThisBuild / organization := "com.voicetel"
 ThisBuild / organizationName := "VoiceTel Communications"
 ThisBuild / organizationHomepage := Some(url("https://voicetel.com"))
-ThisBuild / version := "2.2.20"
+ThisBuild / version := "2.2.21"
 ThisBuild / scalaVersion := "3.10.0"
 
 ThisBuild / homepage := Some(url("https://github.com/voicetel/scala-sdk"))
@@ -20,7 +20,7 @@ ThisBuild / developers := List(
     url = url("https://voicetel.com")
   )
 )
-ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.20)."
+ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.21)."
 
 // Publish via the Central Portal (the legacy OSSRH host oss.sonatype.org is
 // sunset) using sbt 2's built-in support: set SONATYPE_USERNAME /
