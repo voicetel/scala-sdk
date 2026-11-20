@@ -10,12 +10,20 @@ enum ErrorKind:
   case BadRequest
   /** HTTP 401, bearer token missing, expired, or invalid. */
   case Authentication
+  /** HTTP 402, the account balance must be positive for this action (fax
+    * send, directory listing).
+    */
+  case PaymentRequired
   /** HTTP 403, authenticated but not allowed. */
   case PermissionDenied
   /** HTTP 404, resource does not exist. */
   case NotFound
   /** HTTP 409, request conflicts with current state. */
   case Conflict
+  /** HTTP 413, the upload is too large (fax documents must total 8 MiB or
+    * smaller).
+    */
+  case RequestTooLarge
   /** HTTP 429, exceeded the 6/hour/IP cap on account endpoints. */
   case RateLimit
   /** Any HTTP 5xx. */
@@ -26,9 +34,11 @@ object ErrorKind:
   def fromStatus(status: Int): ErrorKind = status match
     case 400              => BadRequest
     case 401              => Authentication
+    case 402              => PaymentRequired
     case 403              => PermissionDenied
     case 404              => NotFound
     case 409              => Conflict
+    case 413              => RequestTooLarge
     case 429              => RateLimit
     case s if s >= 500 && s < 600 => Server
     case _                => Unknown

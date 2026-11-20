@@ -75,6 +75,19 @@ class TransportSuite extends munit.FunSuite:
     assert(ApiError.isAuthentication(t))
   }
 
+  test("HTTP 402 maps to ErrorKind.PaymentRequired") {
+    val backend = stubStatus(402, """{"status":"error","error":{"code":402,"message":"Your account needs a positive balance to send faxes."}}""")
+    val client  = clientFor(backend)
+    val t       = intercept[ApiError](
+      Await.result(
+        client.fax.send("2015550123", "2125550123", List(FaxDocument.pdf("contract.pdf", "%PDF-1.4 fake".getBytes))),
+        5.seconds
+      )
+    )
+    assertEquals(t.kind, ErrorKind.PaymentRequired)
+    assertEquals(t.statusCode, 402)
+  }
+
   test("HTTP 403 maps to ErrorKind.PermissionDenied") {
     val backend = stubStatus(403, errorBody)
     val client  = clientFor(backend)
@@ -96,6 +109,19 @@ class TransportSuite extends munit.FunSuite:
     val t       = intercept[ApiError](Await.result(client.acl.add(Models.AclModifyRequest(Nil)), 5.seconds))
     assertEquals(t.kind, ErrorKind.Conflict)
     assert(ApiError.isConflict(t))
+  }
+
+  test("HTTP 413 maps to ErrorKind.RequestTooLarge") {
+    val backend = stubStatus(413, """{"status":"error","error":{"code":413,"message":"Fax documents must total 8 MiB or smaller."}}""")
+    val client  = clientFor(backend)
+    val t       = intercept[ApiError](
+      Await.result(
+        client.fax.send("2015550123", "2125550123", List(FaxDocument.pdf("big.pdf", new Array[Byte](16)))),
+        5.seconds
+      )
+    )
+    assertEquals(t.kind, ErrorKind.RequestTooLarge)
+    assertEquals(t.statusCode, 413)
   }
 
   test("HTTP 429 (no retries) maps to ErrorKind.RateLimit") {
@@ -172,9 +198,11 @@ class TransportSuite extends munit.FunSuite:
   test("ErrorKind.fromStatus mapping") {
     assertEquals(ErrorKind.fromStatus(400), ErrorKind.BadRequest)
     assertEquals(ErrorKind.fromStatus(401), ErrorKind.Authentication)
+    assertEquals(ErrorKind.fromStatus(402), ErrorKind.PaymentRequired)
     assertEquals(ErrorKind.fromStatus(403), ErrorKind.PermissionDenied)
     assertEquals(ErrorKind.fromStatus(404), ErrorKind.NotFound)
     assertEquals(ErrorKind.fromStatus(409), ErrorKind.Conflict)
+    assertEquals(ErrorKind.fromStatus(413), ErrorKind.RequestTooLarge)
     assertEquals(ErrorKind.fromStatus(429), ErrorKind.RateLimit)
     assertEquals(ErrorKind.fromStatus(500), ErrorKind.Server)
     assertEquals(ErrorKind.fromStatus(502), ErrorKind.Server)
