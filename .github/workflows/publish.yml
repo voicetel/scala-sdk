@@ -41,7 +41,7 @@ jobs:
           sbt-runner-version: 2.0.7
 
       - name: Publish to Central Portal
-        run: sbt publishSigned sonaUpload sonaRelease
+        run: sbt "publishSigned; sonaUpload; sonaRelease"
         env:
           SONATYPE_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           SONATYPE_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
