@@ -10,6 +10,7 @@ Spec v2.2.21 sync — full audit against the live server code, plus the new Fax 
 ### Added
 - **Fax API** (`client.fax`): `numbers()` (fax-capable numbers), `send(fromNumber, toNumber, documents, idempotencyKey)` (multipart, 201, queued; idempotent per Idempotency-Key — retry-safe across restarts), `history(FaxHistoryOptions(...))` (cursor paging, status filter), `get(id)` (job shape with timestamps, attempts, failureReason), `document(id)` (the PDF as raw bytes).
 - Transport: multipart request support, raw-bytes responses, and caller-supplied idempotency keys.
+- Typed error kinds for HTTP 402 (`PaymentRequired` — positive balance required: fax send, directory listing) and HTTP 413 (`RequestTooLarge` — upload over 8 MiB), both previously mapped to `Unknown`.
 
 ### Fixed
 - Fax error envelopes carry an extra `serverTime` field — parsed tolerantly.
