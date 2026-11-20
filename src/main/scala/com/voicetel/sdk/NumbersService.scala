@@ -70,6 +70,37 @@ final class NumbersService(transport: Transport):
       .request(Method.PUT, s"/v2.2/numbers/${enc(number)}/lidb", body = Some(body.asJson))
       .flatMap { p => Future.fromTry(Transport.decodeRequired[NumberLidbData](p)) }
 
+  /** Return the 411 directory-listing state of `number` as published. */
+  def getDirectoryListing(number: String)(using ExecutionContext): Future[DirectoryListingData] =
+    transport
+      .request(Method.GET, s"/v2.2/numbers/${enc(number)}/directory-listing")
+      .flatMap { p => Future.fromTry(Transport.decodeRequired[DirectoryListingData](p)) }
+
+  /** Add or replace the 411 directory listing of `number`. Accepted at once
+    * (HTTP 202) and applied in the background — the returned status is
+    * "pending".
+    */
+  def setDirectoryListing(number: String, body: DirectoryListingRequest)(using
+      ExecutionContext
+  ): Future[DirectoryListingData] =
+    transport
+      .request(
+        Method.PUT,
+        s"/v2.2/numbers/${enc(number)}/directory-listing",
+        body = Some(body.asJson)
+      )
+      .flatMap { p => Future.fromTry(Transport.decodeRequired[DirectoryListingData](p)) }
+
+  /** Remove the 411 directory listing of `number`, or cancel an add that has
+    * not been applied yet. Accepted at once (HTTP 202) and applied in the
+    * background — the returned status is "removing" (or "not_listed" for a
+    * cancelled add).
+    */
+  def removeDirectoryListing(number: String)(using ExecutionContext): Future[DirectoryListingData] =
+    transport
+      .request(Method.DELETE, s"/v2.2/numbers/${enc(number)}/directory-listing")
+      .flatMap { p => Future.fromTry(Transport.decodeRequired[DirectoryListingData](p)) }
+
   def getFax(number: String)(using ExecutionContext): Future[NumberFaxData] =
     transport.request(Method.GET, s"/v2.2/numbers/${enc(number)}/fax").flatMap { p =>
       Future.fromTry(Transport.decodeRequired[NumberFaxData](p))

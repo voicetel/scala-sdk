@@ -172,10 +172,10 @@ class ResourcesSuite extends munit.FunSuite:
   }
 
   test("E911.validate decodes") {
-    val resp = E911ValidateData(E911ValidatedAddress(1, "1 Main", None, "C", "NJ", "07082"))
+    val resp = E911ValidateData(E911ValidatedAddress("123a45b678c9d012e3f45a67b890c123", "1 Main", None, "C", "NJ", "07082"))
     val c    = clientFor(stubOk(envelopeOf(resp)))
     val r    = await(c.e911.validate(E911AddressRequest("1 Main", None, "C", "NJ", "07082")))
-    assertEquals(r.address.addressid, 1)
+    assertEquals(r.address.addressid, "123a45b678c9d012e3f45a67b890c123")
   }
 
   test("E911.get decodes") {
@@ -188,8 +188,31 @@ class ResourcesSuite extends munit.FunSuite:
   test("E911.provision decodes") {
     val resp = E911RecordData(E911Entry("12015550123", "ACME", "1 Main", None, "C", "NJ", "07082"))
     val c    = clientFor(stubOk(envelopeOf(resp)))
-    val r    = await(c.e911.provision("2015550123", E911ProvisionByIDRequest("ACME", 1)))
+    val r    = await(c.e911.provision("2015550123", E911ProvisionByIDRequest("ACME", "123a45b678c9d012e3f45a67b890c123")))
     assertEquals(r.record.dn, "12015550123")
+  }
+
+  test("E911 addressid round-trips as a string (validate -> provision)") {
+    val id = "123a45b678c9d012e3f45a67b890c123"
+    // validate returns the hex-string addressid
+    val vc = clientFor(
+      stubOk(s"""{"status":"success","data":{"address":{"addressid":"$id","address1":"1 Main","city":"C","state":"NJ","zip":"07082"}}}""")
+    )
+    val v = await(vc.e911.validate(E911AddressRequest("1 Main", None, "C", "NJ", "07082")))
+    assertEquals(v.address.addressid, id)
+    // provisioning must send it back as a JSON string, not a number
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val pc   = clientFor(
+      recordingStub(
+        reqs,
+        """{"status":"success","data":{"record":{"dn":"12015550123","callername":"ACME","address1":"1 Main","city":"C","state":"NJ","zip":"07082"}}}"""
+      )
+    )
+    await(pc.e911.provision("2015550123", E911ProvisionByIDRequest("ACME", v.address.addressid)))
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains(s""""addressid":"$id""""), sent)
   }
 
   test("E911.remove returns Unit on 204") {
@@ -310,6 +333,27 @@ class ResourcesSuite extends munit.FunSuite:
     assertEquals(r.orderId, Some("O1"))
   }
 
+  test("INumbering.order decodes the routes each number was placed on") {
+    val raw =
+      """{"status":"success","data":{"orderId":"1026470","amountCharged":1.0,""" +
+        """"numbersOrdered":["2015550100","2015551235"],"failed":[],""" +
+        """"routes":[{"number":"2015550100","route":4},{"number":"2015551235","route":2}]}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(
+      c.iNumbering.order(
+        OrderCreateRequest(
+          List(
+            OrderNumber.Value("2015550100"),
+            OrderNumber.Spec(OrderNumberSpec("2015551235", Some(2)))
+          )
+        )
+      )
+    )
+    assertEquals(r.routes.size, 2)
+    assertEquals(r.routes(0), OrderRoute("2015550100", 4))
+    assertEquals(r.routes(1), OrderRoute("2015551235", 2))
+  }
+
   test("INumbering.ports decodes") {
     val raw =
       """{"status":"success","data":{"ports":[{"status":"submitted",""" +
@@ -379,6 +423,34 @@ class ResourcesSuite extends munit.FunSuite:
     assertEquals(await(c.lookups.lrn("2015550100", "2015550123")).lrn.flatMap(_.lrn), Some("2015550100"))
   }
 
+  test("Lookups.carrier sends GET /v2.2/carrier/{number} and decodes snake_case fields") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","carrier":{"name":"EXAMPLE CARRIER",""" +
+        """"type":"voip","mobile_country_code":null,"mobile_network_code":null,"error_code":null}}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(c.lookups.carrier("2015550123"))
+    assertEquals(r.number, Some("2015550123"))
+    assertEquals(r.carrier.flatMap(_.name), Some("EXAMPLE CARRIER"))
+    assertEquals(r.carrier.flatMap(_.`type`), Some("voip"))
+    assertEquals(r.carrier.flatMap(_.mobileCountryCode), None)
+    assertEquals(r.carrier.flatMap(_.mobileNetworkCode), None)
+    assertEquals(r.carrier.flatMap(_.errorCode), None)
+    assertEquals(reqs.head.method, sttp.model.Method.GET)
+    assertEquals(reqs.head.uri.path, Vector("v2.2", "carrier", "2015550123"))
+  }
+
+  test("Lookups.carrier decodes mobile fields") {
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","carrier":{"name":"MOBILE CARRIER",""" +
+        """"type":"mobile","mobile_country_code":"310","mobile_network_code":"456","error_code":0}}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.lookups.carrier("2015550123"))
+    assertEquals(r.carrier.flatMap(_.mobileCountryCode), Some("310"))
+    assertEquals(r.carrier.flatMap(_.mobileNetworkCode), Some("456"))
+    assertEquals(r.carrier.flatMap(_.errorCode), Some(0))
+  }
+
   // ---------------------------------------------------------------- messaging ---
 
   test("Messaging.history sends spec query params and decodes (value.number is a string)") {
@@ -425,9 +497,62 @@ class ResourcesSuite extends munit.FunSuite:
       }
       .thenRespond(raw)
     val c = clientFor(backend)
-    val r = await(c.messaging.send(MessageSendRequest("2015550100", "2015550123", "hi")))
+    val r = await(c.messaging.send(MessageSendRequest("2015550100", "2015550123", Some("hi"))))
     assertEquals(r.fromNumber, Some("2015550100"))
     assertEquals(r.mediaUrls, List("example"))
+  }
+
+  test("Messaging.send allows a media-only MMS (no text on the wire)") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"id":"msgid","type":"mms","fromNumber":"2015550100",""" +
+        """"toNumber":"2015550123","parts":1,"mediaUrls":["https://cdn.example.com/x.png"]}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(
+      c.messaging.send(MessageSendRequest("2015550100", "2015550123", mediaUrls = List("https://cdn.example.com/x.png")))
+    )
+    assertEquals(r.`type`, Some("mms"))
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"fromNumber\":\"2015550100\""), sent)
+    assert(sent.contains("\"mediaUrls\":["), sent)
+    assert(!sent.contains("\"text\""), s"media-only MMS must omit text: $sent")
+    assert(!sent.contains("\"subject\""), s"unset subject must be omitted: $sent")
+  }
+
+  test("Messaging.history decodes the v2.2.18+ record fields") {
+    val raw =
+      """{"status":"success","data":{"number":"2015550100","type":"dlr","fromTs":1747345200,""" +
+        """"toTs":1747258800,"messages":[{"id":"0123456789abcdef0123456789abcdef01234567",""" +
+        """"key":["1000000001","12015550100",1747345100],"value":{"sourceNumber":"12015550100",""" +
+        """"destinationNumber":"12015550123","messageText":"stat:DELIVRD err:000 text:delivered",""" +
+        """"transactionGUID":"1793144711856jfw","concatenatedMessage":"002"}}]}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.messaging.history(HistoryOptions(number = "2015550100", `type` = Some("dlr"))))
+    val v = r.messages.head.value
+    assertEquals(v.messageText, Some("stat:DELIVRD err:000 text:delivered"))
+    assertEquals(v.transactionGUID, Some("1793144711856jfw"))
+    assertEquals(v.concatenatedMessage, Some("002"))
+    assertEquals(v.attachments, None)
+  }
+
+  test("Messaging.history decodes mms attachments and outbound sms ip") {
+    val raw =
+      """{"status":"success","data":{"number":"2015550100","type":"mms","fromTs":1,"toTs":2,""" +
+        """"messages":[{"id":"a","key":["x"],"value":{"direction":"in","number":"2015550123",""" +
+        """"subject":"hi","attachments":[{"contentFile":"https://example.com/f.png","contentType":"image/png"}]}},""" +
+        """{"id":"b","key":["y"],"value":{"direction":"out","number":"2015550123","message":"ok","ip":"203.0.113.10"}}]}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.messaging.history(HistoryOptions(number = "2015550100", `type` = Some("mms"))))
+    val mms = r.messages(0).value
+    assertEquals(mms.subject, Some("hi"))
+    assertEquals(
+      mms.attachments.flatMap(_.hcursor.downArray.get[String]("contentFile").toOption),
+      Some("https://example.com/f.png")
+    )
+    val sms = r.messages(1).value
+    assertEquals(sms.ip, Some("203.0.113.10"))
   }
 
   test("Messaging.createBrand decodes") {
@@ -631,6 +756,121 @@ class ResourcesSuite extends munit.FunSuite:
     )
     assertEquals(await(c.numbers.setCnam("2015550123", NumberCnamRequest(true))).cnam, Some(true))
     assertEquals(await(c.numbers.setLidb("2015550123", NumberLidbRequest("ACME"))).cnam, Some("ACME"))
+  }
+
+  test("Numbers.getDirectoryListing decodes the published state") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","status":"listed","eligible":true,""" +
+        """"listing":{"type":"B","name":"Acme Corp","streetNumber":"100","streetName":"Broadway",""" +
+        """"streetType":"St","streetSuffix":"","location":"Suite 900","city":"New York",""" +
+        """"state":"NY","zip":"10005","complex":false},"pending":null}}"""
+    val c = clientFor(recordingStub(reqs, raw))
+    val r = await(c.numbers.getDirectoryListing("2015550123"))
+    assertEquals(r.status, Some("listed"))
+    assertEquals(r.eligible, Some(true))
+    assertEquals(r.listing.flatMap(_.`type`), Some("B"))
+    assertEquals(r.listing.flatMap(_.name), Some("Acme Corp"))
+    assertEquals(r.listing.flatMap(_.complex), Some(false))
+    assertEquals(r.pending, None)
+    assertEquals(reqs.head.method, sttp.model.Method.GET)
+    assertEquals(reqs.head.uri.path, Vector("v2.2", "numbers", "2015550123", "directory-listing"))
+  }
+
+  test("Numbers.getDirectoryListing decodes not_listed with a pending add") {
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","status":"pending","eligible":true,""" +
+        """"listing":null,"pending":{"type":"R","firstName":"Jane","lastName":"Doe",""" +
+        """"city":"New York","state":"NY","zip":"10005"}}}"""
+    val c = clientFor(stubOk(raw))
+    val r = await(c.numbers.getDirectoryListing("2015550123"))
+    assertEquals(r.status, Some("pending"))
+    assertEquals(r.listing, None)
+    assertEquals(r.pending.flatMap(_.firstName), Some("Jane"))
+    assertEquals(r.pending.flatMap(_.lastName), Some("Doe"))
+  }
+
+  test("Numbers.setDirectoryListing sends the listing and accepts 202") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","status":"pending","orderId":"1026472",""" +
+        """"listing":{"type":"business","name":"Acme Corp","city":"New York","state":"NY","zip":"10005"}}}"""
+    val c = clientFor(recordingStub(reqs, raw, status = 202))
+    val r = await(
+      c.numbers.setDirectoryListing(
+        "2015550123",
+        DirectoryListingRequest(
+          `type` = "business",
+          name = Some("Acme Corp"),
+          streetNumber = Some("100"),
+          streetName = Some("Broadway"),
+          streetType = Some("St"),
+          streetSuffix = Some("NE"),
+          location = Some("Suite 900"),
+          city = "New York",
+          state = "NY",
+          zip = "10005"
+        )
+      )
+    )
+    assertEquals(r.status, Some("pending"))
+    assertEquals(r.orderId, Some("1026472"))
+    assertEquals(r.listing.flatMap(_.name), Some("Acme Corp"))
+    assertEquals(reqs.head.method, sttp.model.Method.PUT)
+    assertEquals(reqs.head.uri.path, Vector("v2.2", "numbers", "2015550123", "directory-listing"))
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"type\":\"business\""), sent)
+    assert(sent.contains("\"name\":\"Acme Corp\""), sent)
+    assert(sent.contains("\"streetNumber\":\"100\""), sent)
+    assert(sent.contains("\"city\":\"New York\""), sent)
+    assert(sent.contains("\"state\":\"NY\""), sent)
+    assert(sent.contains("\"zip\":\"10005\""), sent)
+    assert(!sent.contains("firstName"), sent)
+  }
+
+  test("Numbers.setDirectoryListing sends a residence listing") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw =
+      """{"status":"success","data":{"number":"2015550123","status":"pending","orderId":"1026473",""" +
+        """"listing":{"type":"residence","firstName":"Jane","lastName":"Doe",""" +
+        """"city":"New York","state":"NY","zip":"10005"}}}"""
+    val c = clientFor(recordingStub(reqs, raw, status = 202))
+    val r = await(
+      c.numbers.setDirectoryListing(
+        "2015550123",
+        DirectoryListingRequest(`type` = "residence", firstName = Some("Jane"), lastName = Some("Doe"), city = "New York", state = "NY", zip = "10005")
+      )
+    )
+    assertEquals(r.status, Some("pending"))
+    val sent = reqs.head.body match
+      case sttp.client3.StringBody(s, _, _) => s
+      case _                                => ""
+    assert(sent.contains("\"type\":\"residence\""), sent)
+    assert(sent.contains("\"firstName\":\"Jane\""), sent)
+    assert(sent.contains("\"lastName\":\"Doe\""), sent)
+    assert(!sent.contains("\"name\""), sent)
+  }
+
+  test("Numbers.removeDirectoryListing accepts 202 with removing status") {
+    val reqs = scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]]()
+    val raw  = """{"status":"success","data":{"number":"2015550123","status":"removing","orderId":"1026473"}}"""
+    val c    = clientFor(recordingStub(reqs, raw, status = 202))
+    val r    = await(c.numbers.removeDirectoryListing("2015550123"))
+    assertEquals(r.status, Some("removing"))
+    assertEquals(r.orderId, Some("1026473"))
+    assertEquals(reqs.head.method, sttp.model.Method.DELETE)
+    assertEquals(reqs.head.uri.path, Vector("v2.2", "numbers", "2015550123", "directory-listing"))
+    assertEquals(reqs.head.body, sttp.client3.NoBody)
+  }
+
+  test("Numbers.removeDirectoryListing cancel-of-pending returns not_listed with no orderId") {
+    val raw = """{"status":"success","data":{"number":"2015550123","status":"not_listed"}}"""
+    val c   = clientFor(recordingStub(scala.collection.mutable.ListBuffer[sttp.client3.Request[?, ?]](), raw, status = 202))
+    val r   = await(c.numbers.removeDirectoryListing("2015550123"))
+    assertEquals(r.status, Some("not_listed"))
+    assertEquals(r.orderId, None)
   }
 
   test("Numbers fax getter and setter") {
@@ -854,7 +1094,7 @@ class ResourcesSuite extends munit.FunSuite:
     shouldFail(c.e911.create(E911CreateRequest("2015550123", "x", "1", None, "C", "NJ", "07082")), "e911.create")
     shouldFail(c.e911.validate(E911AddressRequest("1", None, "C", "NJ", "07082")), "e911.validate")
     shouldFail(c.e911.get("2015550123"), "e911.get")
-    shouldFail(c.e911.provision("2015550123", E911ProvisionByIDRequest("x", 1)), "e911.provision")
+    shouldFail(c.e911.provision("2015550123", E911ProvisionByIDRequest("x", "123a45b678c9d012e3f45a67b890c123")), "e911.provision")
     shouldFail(c.e911.remove("2015550123"), "e911.remove")
     // gateways
     shouldFail(c.gateways.list(), "gateways.list")
@@ -865,10 +1105,11 @@ class ResourcesSuite extends munit.FunSuite:
     shouldFail(c.gateways.numbers(1), "gateways.numbers")
     // lookups
     shouldFail(c.lookups.cnam("2015550123"), "lookups.cnam")
+    shouldFail(c.lookups.carrier("2015550123"), "lookups.carrier")
     shouldFail(c.lookups.lrn("2015550100", "2015550123"), "lookups.lrn")
     // messaging
     shouldFail(c.messaging.history(HistoryOptions(number = "2015550123")), "messaging.history")
-    shouldFail(c.messaging.send(MessageSendRequest("2015550100", "2015550123", "hi")), "messaging.send")
+    shouldFail(c.messaging.send(MessageSendRequest("2015550100", "2015550123", Some("hi"))), "messaging.send")
     shouldFail(c.messaging.createBrand(MessagingBrandCreateRequest("BABC", "X")), "messaging.createBrand")
     shouldFail(c.messaging.campaignStatus(List("CAMP002")), "messaging.campaignStatus")
     shouldFail(c.messaging.createCampaign(MessagingCampaignCreateRequest("B", "C", "d")), "messaging.createCampaign")
@@ -884,6 +1125,12 @@ class ResourcesSuite extends munit.FunSuite:
     shouldFail(c.numbers.setTranslation("2015550123", NumberTranslationRequest("2015551235")), "numbers.setTranslation")
     shouldFail(c.numbers.setCnam("2015550123", NumberCnamRequest(true)), "numbers.setCnam")
     shouldFail(c.numbers.setLidb("2015550123", NumberLidbRequest("ACME")), "numbers.setLidb")
+    shouldFail(c.numbers.getDirectoryListing("2015550123"), "numbers.getDirectoryListing")
+    shouldFail(
+      c.numbers.setDirectoryListing("2015550123", DirectoryListingRequest(`type` = "business", name = Some("Acme Corp"), city = "New York", state = "NY", zip = "10005")),
+      "numbers.setDirectoryListing"
+    )
+    shouldFail(c.numbers.removeDirectoryListing("2015550123"), "numbers.removeDirectoryListing")
     shouldFail(c.numbers.getFax("2015550123"), "numbers.getFax")
     shouldFail(c.numbers.setFax("2015550123", NumberFaxRequest("f@x.com")), "numbers.setFax")
     shouldFail(c.numbers.removeFax("2015550123"), "numbers.removeFax")

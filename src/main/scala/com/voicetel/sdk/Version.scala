@@ -3,10 +3,10 @@ package com.voicetel.sdk
 /** SDK and API version constants. */
 object Version:
   /** This client library's semantic version. */
-  val SDKVersion: String = "2.2.17"
+  val SDKVersion: String = "2.2.20"
 
   /** The VoiceTel REST API version this SDK targets. */
-  val APIVersion: String = "v2.2.17"
+  val APIVersion: String = "v2.2.20"
 
   /** Production VoiceTel API endpoint. */
   val DefaultBaseURL: String = "https://api.voicetel.com"

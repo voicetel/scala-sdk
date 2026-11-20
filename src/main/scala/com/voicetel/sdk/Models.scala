@@ -394,7 +394,13 @@ object Models:
   object E911CreateRequest:
     given Codec[E911CreateRequest] = deriveCodec
 
-  final case class E911ProvisionByIDRequest(callername: String, addressid: Int)
+  /** Body for PUT /v2.2/e911/{dn} (provision by validated address id).
+    *
+    * addressid is the hex string returned by POST /v2.2/e911/validations
+    * (E911ValidateData.address.addressid) — the API treats it as an opaque
+    * string, not a number.
+    */
+  final case class E911ProvisionByIDRequest(callername: String, addressid: String)
   object E911ProvisionByIDRequest:
     given Codec[E911ProvisionByIDRequest] = deriveCodec
 
@@ -410,8 +416,13 @@ object Models:
   object E911Entry:
     given Codec[E911Entry] = deriveCodec
 
+  /** A validated address, as returned by POST /v2.2/e911/validations.
+    *
+    * addressid is a hex string (e.g. "123a45b678c9d012e3f45a67b890c123"),
+    * not an integer.
+    */
   final case class E911ValidatedAddress(
-      addressid: Int,
+      addressid: String,
       address1: String,
       address2: Option[String] = None,
       city: String,
@@ -484,9 +495,10 @@ object Models:
 
   // ---------------------------------------------------------------- iNumbering ---
 
-  /** @param route Global route type for numbers in this order: 1 USER, 2 T30,
+  /** @param route Route for numbers in this order: a gateway id on this account
+    *              (GET /v2.2/gateways) or a global route: 1 USER, 2 T30,
     *              3 VOICE_BRIDGE, 4 DID (default), 5 T38, 6 VOICEML, 8 SDN,
-    *              9 MOBILE.
+    *              9 MOBILE. The API rejects an unknown route with 400.
     */
   final case class OrderNumberSpec(number: String, route: Option[Int] = None)
   object OrderNumberSpec:
@@ -621,15 +633,33 @@ object Models:
   object OrderFailedEntry:
     given Codec[OrderFailedEntry] = deriveCodec
 
+  /** One row in OrderCreateData.routes — the route each ordered number was
+    * placed on: a gateway id on this account or a global route (1 USER, 2 T30,
+    * 3 VOICE_BRIDGE, 4 DID (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE).
+    */
+  final case class OrderRoute(number: String, route: Int)
+  object OrderRoute:
+    given Codec[OrderRoute] = deriveCodec
+
   /** amountCharged is the amount deducted from the account balance. */
   final case class OrderCreateData(
       orderId: Option[String] = None,
       amountCharged: Option[Double] = None,
       numbersOrdered: List[String] = Nil,
-      failed: List[OrderFailedEntry] = Nil
+      failed: List[OrderFailedEntry] = Nil,
+      routes: List[OrderRoute] = Nil
   )
   object OrderCreateData:
-    given Codec[OrderCreateData] = deriveCodec
+    given Encoder[OrderCreateData] = deriveEncoder
+    given Decoder[OrderCreateData] = Decoder.instance { c =>
+      for
+        orderId        <- c.get[Option[String]]("orderId")
+        amountCharged  <- c.get[Option[Double]]("amountCharged")
+        numbersOrdered <- c.getOrElse[List[String]]("numbersOrdered")(Nil)
+        failed         <- c.getOrElse[List[OrderFailedEntry]]("failed")(Nil)
+        routes         <- c.getOrElse[List[OrderRoute]]("routes")(Nil)
+      yield OrderCreateData(orderId, amountCharged, numbersOrdered, failed, routes)
+    }
 
   final case class PortListData(ports: List[PortSummary] = Nil)
   object PortListData:
@@ -699,6 +729,49 @@ object Models:
   object CnamData:
     given Codec[CnamData] = deriveCodec
 
+  /** Carrier and line-type details for GET /v2.2/carrier/{number}.
+    *
+    * The wire field names are the upstream carrier lookup's (Twilio-style
+    * snake_case: `mobile_country_code`, `mobile_network_code`, `error_code`);
+    * the codec maps them to idiomatic Scala field names.
+    */
+  final case class CarrierInfo(
+      name: Option[String] = None,
+      `type`: Option[String] = None,
+      mobileCountryCode: Option[String] = None,
+      mobileNetworkCode: Option[String] = None,
+      errorCode: Option[Int] = None
+  )
+  object CarrierInfo:
+    given Encoder[CarrierInfo] = Encoder.instance { c =>
+      Json.obj(
+        "name"                 -> c.name.asJson,
+        "type"                 -> c.`type`.asJson,
+        "mobile_country_code"  -> c.mobileCountryCode.asJson,
+        "mobile_network_code"  -> c.mobileNetworkCode.asJson,
+        "error_code"           -> c.errorCode.asJson
+      )
+    }
+    given Decoder[CarrierInfo] = Decoder.instance { c =>
+      for
+        name    <- c.get[Option[String]]("name")
+        tpe     <- c.get[Option[String]]("type")
+        mcc     <- c.get[Option[String]]("mobile_country_code")
+        mnc     <- c.get[Option[String]]("mobile_network_code")
+        errCode <- c.get[Option[Int]]("error_code")
+      yield CarrierInfo(name, tpe, mcc, mnc, errCode)
+    }
+
+  /** Data payload from GET /v2.2/carrier/{number}. Billed per lookup at the
+    * account's CNAM rate, only when a result is returned.
+    */
+  final case class CarrierData(
+      number: Option[String] = None,
+      carrier: Option[CarrierInfo] = None
+  )
+  object CarrierData:
+    given Codec[CarrierData] = deriveCodec
+
   final case class LrnData(
       lrn: Option[String] = None,
       state: Option[String] = None,
@@ -724,11 +797,19 @@ object Models:
 
   // ---------------------------------------------------------------- messaging ---
 
-  /** Body for POST /v2.2/messages. Wire fields are `fromNumber` and `toNumber`. */
+  /** Body for POST /v2.2/messages. Wire fields are `fromNumber` and `toNumber`.
+    *
+    * text is required for SMS; for MMS it is optional (at most 2048 chars) —
+    * a media-only MMS sends no text at all. subject is deprecated: still
+    * accepted, but not delivered on most messaging routes. mediaUrls, when
+    * present, must contain at least one publicly reachable http(s) URL and
+    * makes the message an MMS.
+    */
   final case class MessageSendRequest(
       fromNumber: String,
       toNumber: String,
-      text: String,
+      text: Option[String] = None,
+      @deprecated("subject is deprecated; accepted for compatibility but not delivered on most messaging routes", "2.2.20")
       subject: Option[String] = None,
       mediaUrls: List[String] = Nil
   )
@@ -758,13 +839,28 @@ object Models:
   object MessagingCampaignCreateRequest:
     given Codec[MessagingCampaignCreateRequest] = deriveCodec
 
+  /** Per-record fields inside MessageRecord.value; which ones are present
+    * depends on the requested type: messageText / transactionGUID /
+    * concatenatedMessage on delivery receipts (dlr), attachments / subject on
+    * mms, ip on outbound sms.
+    *
+    * attachments is an array of media-file objects for inbound mms but a plain
+    * string (or array of strings) of the submitted URLs for outbound mms, so
+    * it is surfaced as raw JSON.
+    */
   final case class MessageRecordValue(
       sourceNumber: Option[String] = None,
       destinationNumber: Option[String] = None,
       direction: Option[String] = None,
       rate: Option[String] = None,
       number: Option[String] = None,
-      message: Option[String] = None
+      message: Option[String] = None,
+      messageText: Option[String] = None,
+      transactionGUID: Option[String] = None,
+      concatenatedMessage: Option[String] = None,
+      attachments: Option[Json] = None,
+      subject: Option[String] = None,
+      ip: Option[String] = None
   )
   object MessageRecordValue:
     given Codec[MessageRecordValue] = deriveCodec
@@ -886,14 +982,16 @@ object Models:
 
   // ---------------------------------------------------------------- numbers ---
 
-  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+  /** @param route Route: a gateway id on this account (GET /v2.2/gateways) or
+    *              a global route — 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
     *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
     */
   final case class NumberAddRequest(number: String, route: Option[Int] = None)
   object NumberAddRequest:
     given Codec[NumberAddRequest] = deriveCodec
 
-  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+  /** @param route Route: a gateway id on this account (GET /v2.2/gateways) or
+    *              a global route — 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
     *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
     */
   final case class NumberRouteRequest(route: Int)
@@ -907,6 +1005,79 @@ object Models:
   final case class NumberLidbRequest(cnam: String, customerOrderReference: Option[String] = None)
   object NumberLidbRequest:
     given Codec[NumberLidbRequest] = deriveCodec
+
+  // ------------------------------------------------------ directory listing ---
+
+  /** A 411 directory listing, as published (GET) or as submitted (PUT echo).
+    *
+    * `type` "B" (business) carries the name in name; "R" (residence) carries
+    * firstName and lastName. All address fields may be empty strings.
+    * complex marks a multi-line listing, which is read-only through the API.
+    */
+  final case class DirectoryListing(
+      `type`: Option[String] = None,
+      name: Option[String] = None,
+      firstName: Option[String] = None,
+      lastName: Option[String] = None,
+      streetNumber: Option[String] = None,
+      streetName: Option[String] = None,
+      streetType: Option[String] = None,
+      streetSuffix: Option[String] = None,
+      location: Option[String] = None,
+      city: Option[String] = None,
+      state: Option[String] = None,
+      zip: Option[String] = None,
+      complex: Option[Boolean] = None
+  )
+  object DirectoryListing:
+    given Codec[DirectoryListing] = deriveCodec
+
+  /** Body for PUT /v2.2/numbers/{number}/directory-listing.
+    *
+    * `type` is "business" or "residence" (the B / R shorthand is also accepted
+    * by the server). A business sets name; a residence sets firstName and
+    * lastName. The street is optional — give streetNumber and streetName
+    * together, or neither. city, state (2-letter US state/territory code) and
+    * zip (5 digits; a ZIP+4 is accepted and stored as the 5-digit ZIP) are
+    * required.
+    */
+  final case class DirectoryListingRequest(
+      `type`: String,
+      name: Option[String] = None,
+      firstName: Option[String] = None,
+      lastName: Option[String] = None,
+      streetNumber: Option[String] = None,
+      streetName: Option[String] = None,
+      streetType: Option[String] = None,
+      streetSuffix: Option[String] = None,
+      location: Option[String] = None,
+      city: String,
+      state: String,
+      zip: String
+  )
+  object DirectoryListingRequest:
+    given Codec[DirectoryListingRequest] = deriveCodec
+
+  /** Data payload from GET/PUT/DELETE /v2.2/numbers/{number}/directory-listing.
+    *
+    * PUT and DELETE are accepted at once (HTTP 202) and applied in the
+    * background: status is "pending" / "removing" (or "not_listed" when a
+    * pending add was cancelled) and orderId carries the carrier order
+    * reference. GET reports the state as published — status is one of
+    * listed | not_listed | pending | removing | unavailable — with eligible
+    * telling whether a listing can be added, listing the published listing
+    * (null when none) and pending a submitted listing not yet published.
+    */
+  final case class DirectoryListingData(
+      number: Option[String] = None,
+      status: Option[String] = None,
+      eligible: Option[Boolean] = None,
+      listing: Option[DirectoryListing] = None,
+      pending: Option[DirectoryListing] = None,
+      orderId: Option[String] = None
+  )
+  object DirectoryListingData:
+    given Codec[DirectoryListingData] = deriveCodec
 
   final case class NumberFaxRequest(email: String)
   object NumberFaxRequest:
@@ -941,7 +1112,8 @@ object Models:
   object NumberCampaignAssignRequest:
     given Codec[NumberCampaignAssignRequest] = deriveCodec
 
-  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+  /** @param route Route: a gateway id on this account (GET /v2.2/gateways) or
+    *              a global route — 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
     *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
     */
   final case class NumberMoveRequest(accountId: Int, route: Int)
@@ -952,7 +1124,8 @@ object Models:
   object PortOutPinUpdateRequest:
     given Codec[PortOutPinUpdateRequest] = deriveCodec
 
-  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+  /** @param route Route: a gateway id on this account (GET /v2.2/gateways) or
+    *              a global route — 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
     *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
     */
   final case class NumberDetail(
@@ -1016,7 +1189,8 @@ object Models:
   object NumberMessagingState:
     given Codec[NumberMessagingState] = deriveCodec
 
-  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+  /** @param route Route: a gateway id on this account (GET /v2.2/gateways) or
+    *              a global route — 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
     *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
     */
   final case class NumberAddData(number: Option[String] = None, route: Option[Int] = None)
@@ -1054,7 +1228,8 @@ object Models:
   object NumberMessagingPatchData:
     given Codec[NumberMessagingPatchData] = deriveCodec
 
-  /** @param route Global route type on the destination account after the move:
+  /** @param route Route on the destination account after the move: a gateway
+    *              id on this account (GET /v2.2/gateways) or a global route —
     *              1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID (default), 5 T38,
     *              6 VOICEML, 8 SDN, 9 MOBILE.
     */
@@ -1066,7 +1241,8 @@ object Models:
   object NumberMoveData:
     given Codec[NumberMoveData] = deriveCodec
 
-  /** @param route Global route type: 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
+  /** @param route Route: a gateway id on this account (GET /v2.2/gateways) or
+    *              a global route — 1 USER, 2 T30, 3 VOICE_BRIDGE, 4 DID
     *              (default), 5 T38, 6 VOICEML, 8 SDN, 9 MOBILE.
     */
   final case class NumberRouteData(number: Option[String] = None, route: Option[Int] = None)

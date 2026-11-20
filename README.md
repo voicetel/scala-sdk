@@ -2,7 +2,7 @@
 
 The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed, idiomatic Scala 3.
 
-![Version](https://img.shields.io/badge/version-2.2.17-blue)
+![Version](https://img.shields.io/badge/version-2.2.20-blue)
 ![Scala](https://img.shields.io/badge/scala-3.9-DC322F)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)
@@ -25,7 +25,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 ## ✨ Features
 
 ### 🛡️ Strongly Typed End-to-End
-- **Native Scala 3 case classes** for every one of the 79 API operations, JSON-encoded via Circe.
+- **Native Scala 3 case classes** for every one of the 83 API operations, JSON-encoded via Circe.
 - **`Option[T]` for nullable fields** — distinguish "not set" from default values cleanly.
 - **Sealed `enum` types** for error kinds and order-number variants — exhaustive pattern matching at compile time.
 - **`Future[T]` everywhere.** No effect-system lock-in; bring your own `ExecutionContext`.
@@ -38,12 +38,12 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 - **Structured `ApiError`** with a typed `ErrorKind` — switch on `e.kind` without parsing HTTP status codes.
 
 ### 📞 Complete API Coverage
-- **Numbers** — list, get, add, remove, route, translate, CNAM, LIDB, fax, forward, SMS, messaging campaigns, port-out PIN, account moves.
+- **Numbers** — list, get, add, remove, route, translate, CNAM, LIDB, directory listing (411), fax, forward, SMS, messaging campaigns, port-out PIN, account moves.
 - **Account** — profile, sub-accounts, CDRs, credits, payments, MRC, registration, password recovery.
 - **e911** — record provisioning, address validation, lookup, removal.
 - **Gateways** — list, create, update, delete, view bound numbers.
 - **Messaging** — SMS & MMS sending, message history, 10DLC brand and campaign registration, per-number messaging state, and messaging health (account overview, per-number live check, spam-blocked samples, alert-email setting).
-- **Lookups** — CNAM and LRN dips.
+- **Lookups** — CNAM, carrier & line type, and LRN dips.
 - **iNumbering** — inventory search, coverage queries, number orders, port-in submissions, port-out availability.
 - **Support** — ticket create / read / update / delete, threaded messages, replies.
 - **ACL** — IP allowlist management with structured 409 conflict bodies.
@@ -56,7 +56,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 
 ### 📦 Clean Distribution
 - Zero codegen footprint — every byte hand-written.
-- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.17`); pull with sbt or Maven.
+- Single artifact (`com.voicetel:voicetel-sdk_3:2.2.20`); pull with sbt or Maven.
 - Dependencies kept minimal: sttp client3 (core + circe), circe.
 
 ## 🚀 Installation
@@ -64,7 +64,7 @@ The official Scala client for the [VoiceTel REST API](https://voicetel.com/docs/
 ### sbt
 
 ```scala
-libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.17"
+libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.20"
 ```
 
 ### Maven
@@ -73,7 +73,7 @@ libraryDependencies += "com.voicetel" %% "voicetel-sdk" % "2.2.17"
 <dependency>
   <groupId>com.voicetel</groupId>
   <artifactId>voicetel-sdk_3</artifactId>
-  <version>2.2.17</version>
+  <version>2.2.20</version>
 </dependency>
 ```
 

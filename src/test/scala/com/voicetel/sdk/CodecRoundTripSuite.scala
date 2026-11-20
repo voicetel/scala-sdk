@@ -83,13 +83,13 @@ class CodecRoundTripSuite extends munit.FunSuite:
   test("E911 models round-trip") {
     roundTrip(E911AddressRequest("1", Some("2"), "C", "NJ", "07082"), "E911AddressRequest")
     roundTrip(E911CreateRequest("2015550123", "X", "1", Some("2"), "C", "NJ", "07082"), "E911CreateRequest")
-    roundTrip(E911ProvisionByIDRequest("X", 1), "E911ProvisionByIDRequest")
+    roundTrip(E911ProvisionByIDRequest("X", "123a45b678c9d012e3f45a67b890c123"), "E911ProvisionByIDRequest")
     val e = E911Entry("12015550123", "X", "1", Some("2"), "C", "NJ", "07082")
     roundTrip(e, "E911Entry")
-    roundTrip(E911ValidatedAddress(1, "1", None, "C", "NJ", "07082"), "E911ValidatedAddress")
+    roundTrip(E911ValidatedAddress("123a45b678c9d012e3f45a67b890c123", "1", None, "C", "NJ", "07082"), "E911ValidatedAddress")
     roundTrip(E911AllData(List(e)), "E911AllData")
     roundTrip(E911RecordData(e), "E911RecordData")
-    roundTrip(E911ValidateData(E911ValidatedAddress(1, "1", None, "C", "NJ", "07082")), "E911ValidateData")
+    roundTrip(E911ValidateData(E911ValidatedAddress("123a45b678c9d012e3f45a67b890c123", "1", None, "C", "NJ", "07082")), "E911ValidateData")
   }
 
   test("Gateways models round-trip") {
@@ -138,7 +138,11 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(InventorySearchData(Nil), "InventorySearchData")
     roundTrip(InventoryCoverageData(Nil), "InventoryCoverageData")
     roundTrip(OrderFailedEntry("n", "r"), "OrderFailedEntry")
-    roundTrip(OrderCreateData(Some("O"), Some(1.0), List("n"), List(OrderFailedEntry("n2", "r2"))), "OrderCreateData")
+    roundTrip(OrderRoute("2015550100", 4), "OrderRoute")
+    roundTrip(
+      OrderCreateData(Some("O"), Some(1.0), List("n"), List(OrderFailedEntry("n2", "r2")), List(OrderRoute("2015550100", 4))),
+      "OrderCreateData"
+    )
     roundTrip(PortListData(Nil), "PortListData")
     roundTrip(PortDetailData(PortDetail("active")), "PortDetailData")
     roundTrip(PortSubmitData(Some("P"), Some(1), Some("m"), Some("l"), Some("p")), "PortSubmitData")
@@ -152,13 +156,46 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(CnamData(Some("ACME"), Some("2015550123")), "CnamData")
     roundTrip(LrnData(Some("L"), Some("S"), Some("C"), Some("R"), Some("224"), Some("O"), Some("E"), Some("T"), Some("J"), Some("Y")), "LrnData")
     roundTrip(LrnLookupData(Some("a"), Some("d"), Some(LrnData(Some("L")))), "LrnLookupData")
+    roundTrip(
+      CarrierInfo(
+        name = Some("EXAMPLE CARRIER"), `type` = Some("voip"),
+        mobileCountryCode = Some("310"), mobileNetworkCode = Some("456"), errorCode = None
+      ),
+      "CarrierInfo"
+    )
+    roundTrip(CarrierData(Some("2015550123"), Some(CarrierInfo(`type` = Some("landline")))), "CarrierData")
+  }
+
+  test("CarrierInfo maps the upstream snake_case wire names") {
+    val wire =
+      """{"name":"EXAMPLE CARRIER","type":"voip","mobile_country_code":null,"mobile_network_code":"456","error_code":0}"""
+    val decoded = io.circe.parser.decode[CarrierInfo](wire).fold(e => fail(e.toString), identity)
+    assertEquals(decoded.name, Some("EXAMPLE CARRIER"))
+    assertEquals(decoded.`type`, Some("voip"))
+    assertEquals(decoded.mobileCountryCode, None)
+    assertEquals(decoded.mobileNetworkCode, Some("456"))
+    assertEquals(decoded.errorCode, Some(0))
+    val encoded = decoded.asJson.noSpaces
+    assert(encoded.contains("\"mobile_country_code\""), encoded)
+    assert(encoded.contains("\"mobile_network_code\""), encoded)
+    assert(encoded.contains("\"error_code\""), encoded)
+    assert(!encoded.contains("mobileCountryCode"), encoded)
   }
 
   test("Messaging models round-trip") {
-    roundTrip(MessageSendRequest("2015550100", "2015550123", "hi", Some("subj"), List("u1")), "MessageSendRequest")
+    roundTrip(MessageSendRequest("2015550100", "2015550123", Some("hi"), Some("subj"), List("u1")), "MessageSendRequest")
+    roundTrip(MessageSendRequest("2015550100", "2015550123", mediaUrls = List("u1")), "MessageSendRequest (media-only MMS)")
     roundTrip(MessagingBrandCreateRequest("BABC", "X", Some("d")), "MessagingBrandCreateRequest")
     roundTrip(MessagingCampaignCreateRequest("B", "C", "d", Some("Cls"), Some("2026-01-01")), "MessagingCampaignCreateRequest")
-    roundTrip(MessageRecordValue(Some("s"), Some("d"), Some("in"), Some("0.005"), Some("2015550123"), Some("m")), "MessageRecordValue")
+    roundTrip(
+      MessageRecordValue(
+        Some("s"), Some("d"), Some("in"), Some("0.005"), Some("2015550123"), Some("m"),
+        Some("stat:DELIVRD err:000"), Some("guid-1"), Some("002"),
+        Some(Json.arr(Json.obj("contentFile" -> Json.fromString("https://example.com/f.png")))),
+        Some("subj"), Some("203.0.113.10")
+      ),
+      "MessageRecordValue"
+    )
     roundTrip(MessageRecord("id", List(Json.fromString("a"), Json.fromInt(1)), MessageRecordValue()), "MessageRecord")
     roundTrip(MessageHistoryData(Some("2015550123"), Some("sms"), Some(1), Some(2), Nil), "MessageHistoryData")
     roundTrip(MessageSendData(Some("id"), Some("sms"), Some("f"), Some("t"), Some(1), Some("s"), List("u")), "MessageSendData")
@@ -224,6 +261,34 @@ class CodecRoundTripSuite extends munit.FunSuite:
     roundTrip(NumberFaxData(Some("2015550123"), Some("f@x.com")), "NumberFaxData")
     roundTrip(NumberForwardData(Some("2015550123"), Some("2125550123")), "NumberForwardData")
     roundTrip(NumberLidbData(Some("2015550123"), Some("ACME"), Some("ref"), Some("Success")), "NumberLidbData")
+    roundTrip(
+      DirectoryListing(
+        `type` = Some("B"), name = Some("Acme Corp"), streetNumber = Some("100"),
+        streetName = Some("Broadway"), streetType = Some("St"), streetSuffix = Some(""),
+        location = Some("Suite 900"), city = Some("New York"), state = Some("NY"),
+        zip = Some("10005"), complex = Some(false)
+      ),
+      "DirectoryListing"
+    )
+    roundTrip(
+      DirectoryListing(`type` = Some("R"), firstName = Some("Jane"), lastName = Some("Doe"), city = Some("C"), state = Some("NJ"), zip = Some("07082")),
+      "DirectoryListing (residence)"
+    )
+    roundTrip(
+      DirectoryListingRequest(`type` = "business", name = Some("Acme Corp"), city = "New York", state = "NY", zip = "10005"),
+      "DirectoryListingRequest"
+    )
+    roundTrip(
+      DirectoryListingRequest(`type` = "residence", firstName = Some("Jane"), lastName = Some("Doe"), city = "C", state = "NJ", zip = "07082"),
+      "DirectoryListingRequest (residence)"
+    )
+    roundTrip(
+      DirectoryListingData(
+        number = Some("2015550123"), status = Some("listed"), eligible = Some(true),
+        listing = Some(DirectoryListing(`type` = Some("B"), name = Some("Acme Corp"))), pending = None
+      ),
+      "DirectoryListingData"
+    )
     roundTrip(NumberMessagingPatchData(Some("2015550123"), List("routeIn")), "NumberMessagingPatchData")
     roundTrip(NumberMoveData(Some("2015550123"), Some(1), Some(4)), "NumberMoveData")
     roundTrip(NumberRouteData(Some("2015550123"), Some(4)), "NumberRouteData")
@@ -348,8 +413,8 @@ class CodecRoundTripSuite extends munit.FunSuite:
   }
 
   test("Version constants present") {
-    assertEquals(Version.APIVersion, "v2.2.17")
-    assertEquals(Version.SDKVersion, "2.2.17")
+    assertEquals(Version.APIVersion, "v2.2.20")
+    assertEquals(Version.SDKVersion, "2.2.20")
     assert(Version.DefaultBaseURL.startsWith("https://"))
     assert(Version.DefaultUserAgent.contains("voicetel-scala"))
   }

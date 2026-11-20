@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.2.20 — 2026-11-20
+
+Spec v2.2.20 sync. Adds the four new operations and tracks the truth fixes from spec v2.2.18–v2.2.20.
+
+### Added
+- **Directory listing (411)** on a number: `client.numbers.getDirectoryListing(number)`, `.setDirectoryListing(number, DirectoryListingRequest(...))`, `.removeDirectoryListing(number)` — GET returns the published state (`listed` / `not_listed` / `pending` / `removing` / `unavailable`, `eligible`, `listing`, `pending`); PUT/DELETE are accepted at once (HTTP 202, applied in the background) with an `orderId`.
+- **Carrier & line-type lookup**: `client.lookups.carrier(number)` — carrier details with the upstream snake_case field names (`mobile_country_code`, `mobile_network_code`, `error_code`); billed per lookup at the account's CNAM rate.
+- `OrderCreateData.routes` — POST /v2.2/orders now returns the route each ordered number was placed on.
+
+### Changed
+- e911 `addressid` is a **string** (hex), not an integer, on both the validation response and `E911ProvisionByIDRequest`. (Breaking: field type changed `Int` → `String`.)
+- `MessageSendRequest.text` is optional (media-only MMS is valid; at most 2048 chars); `subject` is deprecated (still accepted); `mediaUrls` must be non-empty when present. (Breaking: `text` changed `String` → `Option[String]`.)
+- Message-history `value` records carry the full field set: `messageText`, `transactionGUID`, `concatenatedMessage` (dlr), `attachments` (mms — raw JSON: object array inbound, string/URLs outbound), `subject` (mms), `ip` (outbound sms).
+- DID `route` fields accept any gateway id on the account (GET /v2.2/gateways) in addition to the global routes; the API rejects an unknown route with 400.
+
 ## 2.2.17 — 2026-10-17
 
 Spec v2.2.17 sync.
