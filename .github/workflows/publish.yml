@@ -2,7 +2,7 @@ name: Publish to Maven Central
 
 # Publishes com.voicetel:voicetel-sdk_3 to Maven Central on every v* tag push,
 # using sbt 2's built-in Central Portal support (no sbt-sonatype):
-#   sbt publishSigned sonaUpload sonaRelease
+#   sbt publishSigned sonaRelease
 #
 # Required repo secrets (same values as java-sdk):
 #   CENTRAL_USERNAME        — Central Portal user token name
@@ -41,7 +41,7 @@ jobs:
           sbt-runner-version: 2.0.7
 
       - name: Publish to Central Portal
-        run: sbt "publishSigned; sonaUpload; sonaRelease"
+        run: sbt "publishSigned; sonaRelease"
         env:
           SONATYPE_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           SONATYPE_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
