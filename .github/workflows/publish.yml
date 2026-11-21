@@ -22,7 +22,8 @@ jobs:
   publish:
     name: Publish to Maven Central
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # sonaRelease polls until Central finishes publishing, which can exceed 30 minutes.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
 
