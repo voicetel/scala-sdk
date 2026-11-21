@@ -46,3 +46,5 @@ jobs:
           SONATYPE_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           SONATYPE_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          # sbt-pgp passes this to gpg in loopback mode; there is no tty on the runner.
+          PGP_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
