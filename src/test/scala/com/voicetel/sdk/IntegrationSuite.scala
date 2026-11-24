@@ -4,6 +4,7 @@ import com.voicetel.sdk.Models.CoverageQuery
 
 import scala.concurrent.duration.*
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 /** Live read-only checks against api.voicetel.com.
   *
@@ -60,7 +61,7 @@ class IntegrationSuite extends munit.FunSuite:
       )
       tasks.foreach { case (label, f) =>
         try Await.result(f, 15.seconds)
-        catch case t: Throwable => fail(s"$label failed: $t")
+        catch case NonFatal(t) => fail(s"$label failed: $t")
       }
     finally c.close()
   }

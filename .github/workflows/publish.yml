@@ -42,10 +42,9 @@ jobs:
           sbt-runner-version: 2.0.7
 
       - name: Publish to Central Portal
-        run: sbt "publishSigned; sonaRelease"
+        # Point sbt-pgp at the CI wrapper so GPG never prompts for a tty.
+        run: sbt 'set Global / com.jsuereth.sbtpgp.PgpKeys.gpgCommand := file(".github/scripts/gpg-ci").getAbsolutePath' publishSigned sonaRelease
         env:
           SONATYPE_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           SONATYPE_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          # sbt-pgp passes this to gpg in loopback mode; there is no tty on the runner.
-          PGP_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
