@@ -26,7 +26,13 @@ ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.2
 // Publish via the Central Portal (the legacy OSSRH host oss.sonatype.org is
 // sunset) using sbt 2's built-in support: set SONATYPE_USERNAME /
 // SONATYPE_PASSWORD to the Central Portal user token and release with
-// `sbt publishSigned sonaUpload sonaRelease`.
+// `sbt publishSigned sonaRelease`. Releases stage locally first; sonaRelease
+// bundles the staging directory, uploads it, and publishes the deployment.
+ThisBuild / publishTo := {
+  val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
+  if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
+  else localStaging.value
+}
 
 val sttpVersion  = "3.10.1"
 val circeVersion = "0.14.10"
