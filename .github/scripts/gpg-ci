@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -n "${MAVEN_GPG_PASSPHRASE:-}" ]]; then
+  exec gpg --batch --no-tty --pinentry-mode loopback --passphrase-fd 0 "$@" <<<"$MAVEN_GPG_PASSPHRASE"
+fi
+
+exec gpg --batch --no-tty "$@"

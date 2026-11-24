@@ -6,6 +6,7 @@ import sttp.client3.{HttpClientFutureBackend, SttpBackend}
 import sttp.model.Method
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 /** Configuration for VoiceTelClient.
   *
@@ -83,7 +84,7 @@ final class VoiceTelClient private (
   def close(): Unit =
     if ownsBackend then
       try transport.backend.close()
-      catch case _: Throwable => ()
+      catch case NonFatal(_) => ()
 
 object VoiceTelClient:
   /** Construct a VoiceTelClient with the supplied configuration. If no backend

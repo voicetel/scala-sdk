@@ -1,15 +1,15 @@
 ThisBuild / organization := "com.voicetel"
 ThisBuild / organizationName := "VoiceTel Communications"
-ThisBuild / organizationHomepage := Some(url("https://voicetel.com"))
+ThisBuild / organizationHomepage := Some(uri("https://voicetel.com"))
 ThisBuild / version := "2.2.21"
 ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / scalaVersion := "3.10.1"
 
-ThisBuild / homepage := Some(url("https://github.com/voicetel/scala-sdk"))
-ThisBuild / licenses := List("MIT" -> url("https://opensource.org/licenses/MIT"))
+ThisBuild / homepage := Some(uri("https://github.com/voicetel/scala-sdk"))
+ThisBuild / licenses := List("MIT" -> uri("https://opensource.org/licenses/MIT"))
 ThisBuild / scmInfo := Some(
   ScmInfo(
-    url("https://github.com/voicetel/scala-sdk"),
+    uri("https://github.com/voicetel/scala-sdk"),
     "scm:git@github.com:voicetel/scala-sdk.git"
   )
 )
@@ -18,7 +18,7 @@ ThisBuild / developers := List(
     id = "voicetel",
     name = "VoiceTel",
     email = "support@voicetel.com",
-    url = url("https://voicetel.com")
+    url = uri("https://voicetel.com")
   )
 )
 ThisBuild / description := "Official Scala SDK for the VoiceTel REST API (v2.2.21)."
