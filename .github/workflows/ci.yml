@@ -9,10 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: ["3.10.0"]
     steps:
       - uses: actions/checkout@v7
       - name: Set up JDK 17
@@ -43,9 +39,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-sbt-
       - name: Compile
-        run: sbt "++${{ matrix.scala }}; compile"
+        run: sbt compile
       - name: Test with coverage
-        run: sbt "++${{ matrix.scala }}; clean; coverage; Test/test; coverageReport"
+        run: sbt "clean; coverage; Test/test; coverageReport"
       - name: Coverage summary
         run: |
           report=$(find . -name "scoverage.xml" | head -1)
